@@ -5,10 +5,12 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"strings"
 	"sync"
 	"testing"
 
 	"github.com/gdamore/tcell/v2"
+	"github.com/rivo/uniseg"
 
 	"github.com/eggplants/dev-null-tui/internal/commit"
 )
@@ -156,6 +158,45 @@ func TestRemovesTheLastImage(t *testing.T) {
 
 	h.key(tcell.KeyCtrlR)
 	h.waitForGone("shot.png (3 B)")
+}
+
+func TestShowsEveryImagePastALongName(t *testing.T) {
+	dir := t.TempDir()
+	long := filepath.Join(dir, strings.Repeat("a-very-long-screenshot-name-", 5)+"end.png")
+	images := []string{long, filepath.Join(dir, "second.png"), filepath.Join(dir, "third.png")}
+	for _, image := range images {
+		if err := os.WriteFile(image, []byte("png"), 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	h := start(t, &fakeAPI{})
+	h.waitFor("abc1234")
+
+	h.typeText("c")
+	h.waitFor("New commit")
+	for _, image := range images {
+		h.key(tcell.KeyCtrlO)
+		h.waitFor("Attach an image")
+		h.typeText(image)
+		h.key(tcell.KeyEnter)
+		h.waitForGone("Attach an image")
+	}
+	h.waitFor("end.png (3 B)")
+	h.waitFor("second.png (3 B)")
+	h.waitFor("third.png (3 B)  ^r remove")
+}
+
+func TestShortenName(t *testing.T) {
+	if got := shortenName("shot.png", 8); got != "shot.png" {
+		t.Errorf("a name that fits = %q", got)
+	}
+	if got := shortenName("a-long-screenshot.png", 12); got != "a-long…t.png" {
+		t.Errorf("shortenName = %q", got)
+	}
+	if got := shortenName("スクリーンショット.png", 12); uniseg.StringWidth(got) > 12 || !strings.HasSuffix(got, ".png") {
+		t.Errorf("wide name = %q", got)
+	}
 }
 
 func TestAQuoteCannotCarryImages(t *testing.T) {

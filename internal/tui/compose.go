@@ -10,6 +10,7 @@ import (
 
 	"github.com/gdamore/tcell/v2"
 	"github.com/rivo/tview"
+	"github.com/rivo/uniseg"
 
 	"github.com/eggplants/dev-null-tui/internal/api"
 	"github.com/eggplants/dev-null-tui/internal/commit"
@@ -41,28 +42,8 @@ func (a *App) compose(opts composeOptions) {
 	var images []attachment
 
 	area := tview.NewTextArea().SetPlaceholder("What did you ship?").SetWordWrap(true)
-	attached := tview.NewTextView().SetDynamicColors(true)
+	attached := tview.NewTextView().SetDynamicColors(true).SetWrap(false)
 	counter := tview.NewTextView().SetDynamicColors(true).SetTextAlign(tview.AlignRight)
-	updateCounter := func() {
-		n := utf8.RuneCountInString(strings.TrimSpace(area.GetText()))
-		color := colorMuted
-		if n > maxBodyLength {
-			color = "red"
-		}
-		counter.SetText(fmt.Sprintf("[%s]%d/%d  ^o image  ^s commit  esc cancel[-]", color, n, maxBodyLength))
-
-		if len(images) == 0 {
-			attached.SetText("")
-			return
-		}
-		names := make([]string, len(images))
-		for i, img := range images {
-			names[i] = fmt.Sprintf("%s (%s)", tview.Escape(filepath.Base(img.path)), humanSize(img.size))
-		}
-		attached.SetText(fmt.Sprintf("[%s]▣ %s  ^r remove[-]", colorLink, strings.Join(names, ", ")))
-	}
-	area.SetChangedFunc(updateCounter)
-	updateCounter()
 
 	form := tview.NewFlex().SetDirection(tview.FlexRow)
 	if about != nil {
@@ -71,8 +52,23 @@ func (a *App) compose(opts composeOptions) {
 		preview.SetText(strings.Join(truncateLines(lines[:len(lines)-1], 4), "\n"))
 		form.AddItem(preview, min(len(lines)-1, 4), 0, false)
 	}
-	form.AddItem(area, 0, 1, true).AddItem(attached, 1, 0, false).AddItem(counter, 1, 0, false)
+	form.AddItem(area, 0, 1, true).AddItem(attached, 0, 0, false).AddItem(counter, 1, 0, false)
 	form.SetBorder(true).SetTitle(title)
+
+	updateCounter := func() {
+		n := utf8.RuneCountInString(strings.TrimSpace(area.GetText()))
+		color := colorMuted
+		if n > maxBodyLength {
+			color = "red"
+		}
+		counter.SetText(fmt.Sprintf("[%s]%d/%d  ^o image  ^s commit  esc cancel[-]", color, n, maxBodyLength))
+
+		// One line per image, so a long name doesn't push the others out of sight.
+		form.ResizeItem(attached, len(images), 0)
+		attached.SetText(strings.Join(attachedLines(images, composeWidth-2), "\n"))
+	}
+	area.SetChangedFunc(updateCounter)
+	updateCounter()
 
 	submitting := false
 	area.SetInputCapture(func(event *tcell.EventKey) *tcell.EventKey {
@@ -114,7 +110,29 @@ func (a *App) compose(opts composeOptions) {
 		return event
 	})
 
-	a.openModal("compose", centered(form, 76, 17))
+	a.openModal("compose", centered(form, composeWidth, 17))
+}
+
+// composeWidth is the composer's width, border included.
+const composeWidth = 76
+
+// attachedLines lists the images picked so far, a line each, cutting names down to fit width.
+func attachedLines(images []attachment, width int) []string {
+	const remove = "  ^r remove"
+
+	lines := make([]string, len(images))
+	for i, img := range images {
+		size := fmt.Sprintf(" (%s)", humanSize(img.size))
+		name := shortenName(filepath.Base(img.path), width-uniseg.StringWidth("▣ "+size+remove))
+		lines[i] = fmt.Sprintf("[%s]▣ %s%s", colorLink, tview.Escape(name), size)
+		// ^r takes off the last one.
+		if i == len(images)-1 {
+			lines[i] += remove
+		}
+		lines[i] += "[-]"
+	}
+
+	return lines
 }
 
 func (a *App) confirmDiscard(area *tview.TextArea) {

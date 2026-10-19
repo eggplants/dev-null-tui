@@ -13,6 +13,7 @@ import (
 
 	"github.com/gdamore/tcell/v2"
 	"github.com/rivo/tview"
+	"github.com/rivo/uniseg"
 
 	"github.com/eggplants/dev-null-tui/internal/commit"
 )
@@ -107,6 +108,28 @@ func humanSize(n int64) string {
 	default:
 		return fmt.Sprintf("%d B", n)
 	}
+}
+
+// shortenName cuts the middle out of a file name wider than width, keeping its start and its extension.
+func shortenName(name string, width int) string {
+	if uniseg.StringWidth(name) <= width {
+		return name
+	}
+
+	runes := []rune(name)
+	room := max(width-1, 0) // beside the ellipsis
+	start, tailWidth := len(runes), 0
+	for start > 0 && tailWidth+uniseg.StringWidth(string(runes[start-1])) <= room/2 {
+		start--
+		tailWidth += uniseg.StringWidth(string(runes[start]))
+	}
+	end, headWidth := 0, 0
+	for end < start && headWidth+uniseg.StringWidth(string(runes[end])) <= room-tailWidth {
+		headWidth += uniseg.StringWidth(string(runes[end]))
+		end++
+	}
+
+	return string(runes[:end]) + "…" + string(runes[start:])
 }
 
 // pickImage asks for an image's path, completing it with Tab, and hands what it picked to add.

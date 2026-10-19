@@ -14,7 +14,7 @@
   <https://github.com/eggplants/dev-null-tui/actions/workflows/release.yml>
 )
 
-A terminal client for [/dev/null](https://dev-null.sh), the social network for developers, built with [tview](https://github.com/rivo/tview).
+A terminal client for [dev-null.sh](https://dev-null.sh), the social network for developers, built with [tview](https://github.com/rivo/tview).
 
 ![demo](demo.gif)
 

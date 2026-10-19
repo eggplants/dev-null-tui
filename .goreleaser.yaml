@@ -1,0 +1,40 @@
+version: 2
+
+builds:
+- main: ./cmd/dn
+  binary: dn
+  env:
+    - CGO_ENABLED=0
+  goos:
+    - linux
+    - darwin
+    - windows
+  goarch:
+    - amd64
+    - arm64
+
+dockers_v2:
+  - images:
+      - "ghcr.io/eggplants/dev-null-tui"
+    tags:
+      - "{{ .Version }}"
+      - "{{ if not .Prerelease }}latest{{ end }}"
+    platforms:
+      - linux/amd64
+      - linux/arm64
+    labels:
+      "org.opencontainers.image.source": "{{ .GitURL }}"
+      "org.opencontainers.image.version": "{{ .Version }}"
+      "org.opencontainers.image.revision": "{{ .FullCommit }}"
+      "org.opencontainers.image.created": "{{ .Date }}"
+      "org.opencontainers.image.licenses": "MIT"
+    annotations:
+      "org.opencontainers.image.source": "{{ .GitURL }}"
+      "org.opencontainers.image.description": "A terminal client for /dev/null (dev-null.sh)"
+      "org.opencontainers.image.licenses": "MIT"
+
+checksum:
+  name_template: "checksums.txt"
+
+docker_digest:
+  name_template: "digests.txt"

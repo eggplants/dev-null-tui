@@ -27,48 +27,50 @@ mise use -g github:eggplants/dev-null-tui
 # via go
 go install github.com/eggplants/dev-null-tui/cmd/dn@latest
 
-# via docker (sign in with `dn login` on the host first, and mount its config)
+# via docker
 docker run --rm -it -v ~/.config/devnull-tui:/root/.config/devnull-tui:ro ghcr.io/eggplants/dev-null-tui
 ```
 
 ## Usage
 
 ```sh
-dn login    # approve this TUI's SSH key on the web, once
-dn          # open the TUI
+# approve this TUI's SSH key on the web
+dn login
+
+# check
 dn whoami
-dn commit [-r <commit hash or link>] [-i <path>]... [--] [text...]
-dn --version
-dn --help
+
+# open the TUI
+dn          
 ```
 
 ### Committing from the shell
 
-`dn commit` does what `curl -fsSL https://dev-null.sh/commit | bash -s -- 'text'` does, without bash, curl or
-ssh-keygen. It needs no `dn login`: it signs the commit with an Ed25519 or RSA key from your SSH agent or `~/.ssh` that
-is on your GitHub account, and /dev/null checks the signature against the keys GitHub publishes for you.
+`dn commit` signs and pushes the commit with an Ed25519 or RSA key from your SSH agent or `~/.ssh`.
 
 ```sh
+# post
 dn commit 'Hello world!'
+
+# reply
 dn commit -r 0be0130 'Agreed!'
+
+# with image (JPEG/PNG/WebP, up to 10MB, 3 files)
 dn commit --image shipped.png --image demo.webp 'Shipped!'
 git log -1 --format=%s | dn commit
 ```
 
-`-i`/`--image` takes a JPEG, PNG or WebP file of up to 10 MB, up to 3 times, and `-r`/`--reply` the hash of the
-commit to reply to, or its link. Without text, the message is read from stdin,
-or asked for. A key with a passphrase is unlocked through your SSH agent, or asked for on the terminal.
-
 ### Signing in
 
-`dn` signs in the way the /dev/null mobile app does. `login` makes an ed25519 key in `~/.config/devnull-tui/`
-(or approves the one you pass with `-key`) and opens `https://dev-null.sh/mobile/authorize` in your browser. Approve it
-there, and the browser hands the one-time code back through a `devnull://` link, which `dn` redeems. Every
-request after that is signed with the key ([SSHSIG](https://github.com/openssh/openssh-portable/blob/master/PROTOCOL.sshsig),
-namespace `devnull-api`). You can revoke it under Settings → Devices.
+`dn` signs in the same way the /dev/null mobile app does. `login` creates an ed25519 key in `~/.config/devnull-tui/`
+(or uses the one you pass with `-key`) and opens `https://dev-null.sh/mobile/authorize` in your browser. Once you
+approve it there, the browser sends a one-time code back through a `devnull://` link and `dn` redeems it. From then on,
+every request is signed with that key ([SSHSIG](https://github.com/openssh/openssh-portable/blob/master/PROTOCOL.sshsig),
+namespace `devnull-api`).
 
-On Linux, `login` registers itself as the desktop's handler for `devnull://` links
-(`~/.local/share/applications/devnull-tui.desktop`). Run `login` again after moving the binary.
+To revoke it, go to [`Settings → Devices`](https://dev-null.sh/settings/devices).
+
+On Linux, `login` registers `dn` as the desktop's handler for `devnull://` links. If you move the binary, run `login` again.
 
 ### Keys
 
@@ -92,16 +94,26 @@ On Linux, `login` registers itself as the desktop's handler for `devnull://` lin
 | `?` | Help |
 | `q` | Back, or quit on a tab |
 
-In the composer, `^s` commits, `^o` attaches an image (`Tab` completes the path) and `^r` removes the last one.
+In the composer, `^s` commits and `^o` attaches an image (`Tab` completes the path). `^r` drops the last image you
+attached.
 
 ## Limitations
 
-The TUI does what the [signed API](https://github.com/nunomaduro/dev-null.sh#signed-requests) does. What only the web
-does is out of reach for now: search, remotes (messages and orgs), polls (voting and making them), pinning, scheduled
-commits and translations. The `devnull://` handler is only registered on Linux.
+The TUI can do whatever the [signed API](https://github.com/nunomaduro/dev-null.sh#signed-requests) can.
 
-The signed API only takes JSON, so a commit with images goes out the way `dn commit --image` sends it: signed with an
-SSH key on your GitHub account, which has to be in your SSH agent or `~/.ssh`. A quote can't carry images.
+Features that only the web has are out of reach for now:
+- search
+- remotes (messages and orgs)
+- polls (voting and creating them)
+- pinning
+- scheduled commits
+- translations
+- quote with images
+
+And the `devnull://` handler only gets registered on Linux.
+
+The signed API only accepts JSON. So a commit with images is sent the same way `dn commit --image` sends it, signed
+with an SSH key on your GitHub account, and that key has to be in your SSH agent or `~/.ssh`.
 
 ## License
 

@@ -76,8 +76,8 @@ jobs:
           API_VERSION="v$(date -u -d "$GENERATED_AT" +%Y.%m.%d)-${SOURCE_COMMIT::8}"
           export GENERATED_AT SOURCE_COMMIT API_VERSION
           for api in v1 cli; do
-            SCRAMBLE_API="$api" php artisan scramble:export --path="$RUNNER_TEMP/$api.json"
-            yq -p json -o yaml "$RUNNER_TEMP/$api.json" > "../docs/openapi/$api.yaml"
+            SCRAMBLE_API="$api" php artisan scramble:export --path="../docs/openapi/$api.json"
+            yq -p json -o yaml "../docs/openapi/$api.json" > "../docs/openapi/$api.yaml"
           done
       - uses: actions/configure-pages@45bfe0192ca1faeb007ade9deae92b16b8254a0d # v6.0.0
       - uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0

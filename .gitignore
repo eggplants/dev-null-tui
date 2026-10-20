@@ -3,4 +3,5 @@
 /dist/
 /demo-server
 /docs/index.html
+/docs/openapi/*.json
 /docs/openapi/*.yaml

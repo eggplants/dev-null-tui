@@ -111,9 +111,10 @@ func (c *Client) UserCommits(ctx context.Context, username, cursor string, repli
 	return &res, err
 }
 
-func (c *Client) Saved(ctx context.Context, cursor string) (*Page[Commit], error) {
+// Starred lists the commits the user starred, last starred first.
+func (c *Client) Starred(ctx context.Context, cursor string) (*Page[Commit], error) {
 	var res Page[Commit]
-	err := c.Do(ctx, http.MethodGet, withCursor("/api/v1/saved", cursor, nil), nil, &res)
+	err := c.Do(ctx, http.MethodGet, withCursor("/api/v1/starred", cursor, nil), nil, &res)
 
 	return &res, err
 }
@@ -147,16 +148,6 @@ func (c *Client) DeleteCommit(ctx context.Context, id string) error {
 // Star stars or unstars a commit, and answers with the commit's new state.
 func (c *Client) Star(ctx context.Context, id string, star bool) (*Commit, error) {
 	return c.commitAction(ctx, toggle(star), "/api/v1/commits/"+url.PathEscape(id)+"/star")
-}
-
-// Save saves or unsaves a commit, and answers with the commit's new state.
-func (c *Client) Save(ctx context.Context, id string, save bool) (*Commit, error) {
-	method := http.MethodPut
-	if !save {
-		method = http.MethodDelete
-	}
-
-	return c.commitAction(ctx, method, "/api/v1/commits/"+url.PathEscape(id)+"/bookmark")
 }
 
 // GivePastel gives a commit one of the user's daily pastéis, and answers with the commit's new state.

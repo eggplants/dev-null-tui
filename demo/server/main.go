@@ -30,7 +30,6 @@ type commit struct {
 	Ago       time.Duration
 	Stars     int
 	Starred   bool
-	Saved     bool
 	ParentID  string
 	Quoted    string
 	Link      map[string]any
@@ -112,7 +111,7 @@ func (s *server) json(c *commit, withPreview bool) map[string]any {
 		"body": c.Body, "body_segments": c.Segments, "status": "approved",
 		"html_url":   "https://dev-null.sh/@" + c.Author["username"].(string) + "/commits/" + c.ID,
 		"created_at": created.UTC().Format(time.RFC3339), "author": c.Author,
-		"stars_count": c.Stars, "starred": c.Starred, "is_saved": c.Saved, "replies_count": len(replies),
+		"stars_count": c.Stars, "starred": c.Starred, "replies_count": len(replies),
 		"link_preview": c.Link, "poll": c.Poll, "images": make([]any, c.Images),
 	}
 	if c.ParentID != "" {
@@ -163,8 +162,8 @@ func (s *server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		out = map[string]any{"data": you, "unread_notifications_count": 3}
 	case r.Method == "GET" && parts[0] == "log":
 		out = s.list(topLevel, true)
-	case route == "GET saved":
-		out = s.list(func(c *commit) bool { return c.Saved }, true)
+	case route == "GET starred":
+		out = s.list(func(c *commit) bool { return c.Starred }, true)
 	case route == "GET notifications":
 		out = map[string]any{"data": []any{
 			map[string]any{"id": "n1", "type": "starred", "created_at": s.start.Add(-4 * time.Minute).Format(time.RFC3339), "actor": sam, "actors_count": 3, "unread_count": 3, "commit": s.json(s.find("c5"), false)},
@@ -198,7 +197,7 @@ func (s *server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		out = map[string]any{"data": s.json(c, false), "ancestors": ancestors}
 	case r.Method == "GET" && parts[0] == "commits" && len(parts) == 3 && parts[2] == "replies":
 		out = s.list(func(c *commit) bool { return c.ParentID == parts[1] }, false)
-	case parts[0] == "commits" && len(parts) == 3 && (parts[2] == "star" || parts[2] == "bookmark" || parts[2] == "pasteis"):
+	case parts[0] == "commits" && len(parts) == 3 && (parts[2] == "star" || parts[2] == "pasteis"):
 		c := s.find(parts[1])
 		if c == nil {
 			http.NotFound(w, r)
@@ -209,8 +208,6 @@ func (s *server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			c.Starred, c.Stars = true, c.Stars+1
 		case parts[2] == "star" && r.Method == "DELETE" && c.Starred:
 			c.Starred, c.Stars = false, c.Stars-1
-		case parts[2] == "bookmark":
-			c.Saved = r.Method == "PUT"
 		}
 		out = map[string]any{"data": s.json(c, false)}
 	case route == "POST commits":

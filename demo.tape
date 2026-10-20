@@ -35,7 +35,7 @@ Enter
 Sleep 1.5s
 
 # Star it and reply.
-Type "f"
+Type "s"
 Sleep 1s
 Type "r"
 Sleep 700ms

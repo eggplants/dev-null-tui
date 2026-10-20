@@ -101,7 +101,7 @@ func (a *App) Run(ctx context.Context) error {
 		{name: "Latest", stack: []view{newLogFeed(a, api.LogLatest)}},
 		{name: "Trending", stack: []view{newLogFeed(a, api.LogTrending)}},
 		{name: "Notifications", stack: []view{newNotifications(a)}},
-		{name: "Saved", stack: []view{newSavedFeed(a)}},
+		{name: "Starred", stack: []view{newStarredFeed(a)}},
 		{name: "Profile", stack: []view{newProfile(a, a.me.Username)}},
 	}
 	a.switchTab(0)
@@ -171,7 +171,7 @@ func (a *App) drawHeader() {
 
 // hint shows the key hints in the status bar.
 func (a *App) hint() {
-	a.status.SetText(fmt.Sprintf("[%s]j/k move  ⏎ open  c commit  r reply  f star  s save  u profile  ? help  q quit[-]", colorMuted))
+	a.status.SetText(fmt.Sprintf("[%s]j/k move  ⏎ open  c commit  r reply  s star  u profile  ? help  q quit[-]", colorMuted))
 }
 
 // flash shows a message in the status bar for a few seconds. Call it from the UI goroutine.
@@ -356,9 +356,9 @@ func (a *App) help() {
 [::b]Commits[::-]
   c           new commit           R         refresh
   r           reply                Q         quote
-  f           star / unstar        s         save / unsave
-  P           give a pastel        u         author's profile
-  o           open in browser      D         delete yours
+  s           star / unstar        P         give a pastel
+  u           author's profile     o         open in browser
+  D           delete yours
 
 [::b]Profile[::-]
   F           follow / unfollow    T         commits / replies

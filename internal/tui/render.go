@@ -255,9 +255,6 @@ func countsLine(c *api.Commit) string {
 	if c.PasteisCount > 0 {
 		line += fmt.Sprintf("  [%s]pastéis %d[-]", colorMuted, c.PasteisCount)
 	}
-	if c.IsSaved {
-		line += fmt.Sprintf("  [%s]saved[-]", colorLink)
-	}
 
 	return line
 }

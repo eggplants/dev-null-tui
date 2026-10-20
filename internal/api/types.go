@@ -77,7 +77,6 @@ type Commit struct {
 	RepliesCount    int           `json:"replies_count"`
 	PasteisCount    int           `json:"pasteis_count"`
 	Starred         bool          `json:"starred"`
-	IsSaved         bool          `json:"is_saved"`
 	IsPinned        bool          `json:"is_pinned"`
 	Author          *User         `json:"author"`
 	Images          []Image       `json:"images"`

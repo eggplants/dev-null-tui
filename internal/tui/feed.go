@@ -95,9 +95,9 @@ func (f *commitFeed) checkNewCommits() {
 	})
 }
 
-func newSavedFeed(app *App) *commitFeed {
-	return newCommitFeed(app, "Saved", "Commits you save with s show up here.", func(ctx context.Context, cursor string) ([]*api.Commit, string, error) {
-		page, err := app.client.Saved(ctx, cursor)
+func newStarredFeed(app *App) *commitFeed {
+	return newCommitFeed(app, "Starred", "Commits you star with s show up here.", func(ctx context.Context, cursor string) ([]*api.Commit, string, error) {
+		page, err := app.client.Starred(ctx, cursor)
 		if err != nil {
 			return nil, "", err
 		}
@@ -179,10 +179,8 @@ func (f *commitFeed) commitKeys(event *tcell.EventKey) *tcell.EventKey {
 		f.app.compose(composeOptions{parent: c, done: f.Reload})
 	case 'Q':
 		f.app.compose(composeOptions{quoted: c})
-	case 'f':
-		f.update(c, func(ctx context.Context) (*api.Commit, error) { return f.app.client.Star(ctx, c.ID, !c.Starred) })
 	case 's':
-		f.update(c, func(ctx context.Context) (*api.Commit, error) { return f.app.client.Save(ctx, c.ID, !c.IsSaved) })
+		f.update(c, func(ctx context.Context) (*api.Commit, error) { return f.app.client.Star(ctx, c.ID, !c.Starred) })
 	case 'P':
 		f.update(c, func(ctx context.Context) (*api.Commit, error) { return f.app.client.GivePastel(ctx, c.ID) })
 	case 'u':
@@ -222,7 +220,7 @@ func (f *commitFeed) update(c *api.Commit, action func(ctx context.Context) (*ap
 		}
 
 		c.Starred, c.StarsCount = updated.Starred, updated.StarsCount
-		c.IsSaved, c.PasteisCount = updated.IsSaved, updated.PasteisCount
+		c.PasteisCount = updated.PasteisCount
 		c.RepliesCount = updated.RepliesCount
 		f.Invalidate()
 	})

@@ -196,7 +196,7 @@ func TestReadsTheLogAndActsOnACommit(t *testing.T) {
 	h.waitFor("Thread abc1234")
 	h.waitFor("def5678")
 
-	h.typeText("f")
+	h.typeText("s")
 	h.waitFor("★ 3")
 
 	h.key(tcell.KeyEscape)

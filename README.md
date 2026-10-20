@@ -89,12 +89,12 @@ On Linux, `login` registers `dn` as the desktop's handler for `devnull://` links
 | `j` `k` `↓` `↑` | Next / previous (scrolls through long commits) |
 | `g` `G` | First / last |
 | `^d` `^u` | Page down / up |
-| `1`–`6` `Tab` | Following, Latest, Trending, Notifications, Saved, Profile |
+| `1`–`6` `Tab` | Following, Latest, Trending, Notifications, Starred, Profile |
 | `⏎` `l` | Open the thread |
 | `Esc` `h` `⌫` | Back |
 | `c` | New commit |
 | `r` / `Q` | Reply / quote |
-| `f` / `s` | Star / save |
+| `s` | Star |
 | `P` | Give a pastel |
 | `u` | Open the author's profile |
 | `o` | Open in the browser |

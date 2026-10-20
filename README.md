@@ -12,6 +12,14 @@
   <https://github.com/eggplants/dev-null-tui/actions/workflows/release.yml/badge.svg>
 )](
   <https://github.com/eggplants/dev-null-tui/actions/workflows/release.yml>
+) [![OpenAPI](
+  <https://img.shields.io/badge/OpenAPI-docs-6BA539?logo=openapiinitiative&logoColor=white>
+)](
+  <https://egpl.dev/dev-null-tui/openapi/>
+) [![dev-null.sh](
+  <https://img.shields.io/badge/dev--null.sh-%40eggplants-black>
+)](
+  <https://dev-null.sh/@eggplants>
 )
 
 A terminal client for [dev-null.sh](https://dev-null.sh), the social network for developers, built with [tview](https://github.com/rivo/tview).

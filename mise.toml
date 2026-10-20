@@ -6,6 +6,7 @@ goreleaser = "latest"
 pinact = "latest" # [skip ci]
 ttyd = "latest" # [skip ci]
 vhs = "latest"
+yq = "latest"
 
 [tasks.pre-commit]
 depends = ["ci"]
@@ -30,6 +31,40 @@ run = "goreleaser release --snapshot --clean"
 
 [tasks.fmt]
 run = "go fmt ./..."
+
+[tasks.readme]
+run = '''
+#!/usr/bin/env bash
+set -euo pipefail
+repo=https://github.com/eggplants/dev-null-tui
+{
+  cat <<'EOF'
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>dev-null-tui</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/github-markdown-css@5.9.0/github-markdown.min.css">
+<style>
+body { margin: 0; color-scheme: light dark; background: #fff; }
+@media (prefers-color-scheme: dark) { body { background: #0d1117; } }
+.markdown-body { box-sizing: border-box; max-width: 980px; margin: 0 auto; padding: 45px 16px; }
+</style>
+</head>
+<body>
+<article class="markdown-body">
+EOF
+  # Rendered as on GitHub, with README.md's relative links pointed at the repository...
+  gh api markdown -f mode=gfm -f context=eggplants/dev-null-tui -F text=@README.md |
+    sed -E "s|src=\"([^\":#/][^\":]*)\"|src=\"$repo/raw/master/\1\"|g; s|href=\"([^\":#/][^\":]*)\"|href=\"$repo/blob/master/\1\"|g"
+  cat <<'EOF'
+</article>
+</body>
+</html>
+EOF
+} > docs/index.html
+'''
 
 [tasks.demo]
 run = """

@@ -1,0 +1,99 @@
+name: docs
+
+on:
+  workflow_dispatch:
+  schedule:
+    # dev-null.sh changes without this repo knowing...
+    - cron: "0 0 * * *"
+  push:
+    branches: ["master"]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+env:
+  MISE_EXPERIMENTAL: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    services:
+      postgres:
+        image: pgvector/pgvector:pg18
+        env:
+          POSTGRES_USER: root
+          POSTGRES_PASSWORD: password
+          POSTGRES_DB: devnull
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 2s
+          --health-timeout 5s
+          --health-retries 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: nunomaduro/dev-null.sh
+          path: dev-null.sh
+          persist-credentials: false
+      - run: sed -i '/# \[skip ci\]/d' mise.toml
+      - uses: jdx/mise-action@fc42bcc7ddbf51124c30f95a877a0c5168a3bfde # v5.2.1
+      - run: mise run readme
+        env:
+          GH_TOKEN: ${{ github.token }}
+      - uses: shivammathur/setup-php@eb7c497e18156a6bbabfef1d3a82760b9eda3962 # 2.40.0
+        with:
+          php-version: 8.5
+          tools: composer:v2
+          extensions: pdo_pgsql
+          coverage: none
+      # Scramble reads the column types from the database, so the schema has to be migrated first.
+      - name: Export OpenAPI documents
+        working-directory: dev-null.sh
+        env:
+          DB_HOST: 127.0.0.1
+          DB_PASSWORD: password
+        run: |
+          composer install --no-interaction --prefer-dist --no-progress --no-scripts
+          composer require --dev --no-interaction --no-progress --no-scripts 'dedoc/scramble:^0.13.49'
+          composer run-script post-autoload-dump
+          cp .env.example .env
+          php artisan key:generate
+          php artisan migrate --force
+          cp ../docs/openapi/scramble.php config/scramble.php
+
+          GENERATED_AT="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          SOURCE_COMMIT="$(git rev-parse HEAD)"
+          API_VERSION="v$(date -u -d "$GENERATED_AT" +%Y.%m.%d)-${SOURCE_COMMIT::8}"
+          export GENERATED_AT SOURCE_COMMIT API_VERSION
+          for api in v1 cli; do
+            SCRAMBLE_API="$api" php artisan scramble:export --path="$RUNNER_TEMP/$api.json"
+            yq -p json -o yaml "$RUNNER_TEMP/$api.json" > "../docs/openapi/$api.yaml"
+          done
+      - uses: actions/configure-pages@45bfe0192ca1faeb007ade9deae92b16b8254a0d # v6.0.0
+      - uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
+        with:
+          path: docs
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@368f82528645a54fb793d4d04e342629a3f51346 # v5.0.1

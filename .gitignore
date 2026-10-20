@@ -2,3 +2,5 @@
 /dn.exe
 /dist/
 /demo-server
+/docs/index.html
+/docs/openapi/*.yaml

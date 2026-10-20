@@ -1,0 +1,20 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>/dev/null API</title>
+  </head>
+  <body>
+    <div id="app"></div>
+    <script src="https://cdn.jsdelivr.net/npm/@scalar/api-reference@1.73.0"></script>
+    <script>
+      Scalar.createApiReference("#app", {
+        sources: [
+          { title: "/api/v1", slug: "v1", url: "v1.yaml" },
+          { title: "/api/cli", slug: "cli", url: "cli.yaml" },
+        ],
+      });
+    </script>
+  </body>
+</html>

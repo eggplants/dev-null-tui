@@ -219,7 +219,7 @@ func attachmentLines(c *api.Commit, gutter string, width int) []string {
 		if n > 1 {
 			label = fmt.Sprintf("%d images", n)
 		}
-		lines = append(lines, gutter+fmt.Sprintf("[%s][%s][-]", colorMuted, label))
+		lines = append(lines, gutter+fmt.Sprintf("[%s][%s · i to view][-]", colorMuted, label))
 	}
 
 	if lp := c.LinkPreview; lp != nil {

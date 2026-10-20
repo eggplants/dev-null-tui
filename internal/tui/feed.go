@@ -191,6 +191,12 @@ func (f *commitFeed) commitKeys(event *tcell.EventKey) *tcell.EventKey {
 		if err := browser.Open(c.HTMLURL); err != nil {
 			f.app.flashError(err)
 		}
+	case 'i':
+		if len(c.Images) == 0 {
+			f.app.flash("[%s]This commit has no images.[-]", colorMuted)
+			break
+		}
+		f.app.push(newImageViewer(f.app, c.Images))
 	case 'D':
 		f.delete(c)
 	default:

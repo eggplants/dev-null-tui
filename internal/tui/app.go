@@ -28,6 +28,7 @@ type tab struct {
 
 type App struct {
 	tv     *tview.Application
+	screen tcell.Screen // set by SetScreen, or else made by Run
 	client *api.Client
 	me     *api.User
 
@@ -83,6 +84,7 @@ func New(client *api.Client) *App {
 
 // SetScreen draws the TUI on screen instead of the terminal, as tests do.
 func (a *App) SetScreen(screen tcell.Screen) *App {
+	a.screen = screen
 	a.tv.SetScreen(screen)
 
 	return a
@@ -109,6 +111,17 @@ func (a *App) Run(ctx context.Context) error {
 
 	go a.pollUnread(ctx)
 	go a.pollLogs(ctx)
+
+	if a.screen == nil {
+		// The terminal is asked about graphics before tcell takes it over and would read the answers as keys.
+		protocol, width, height := detectGraphics()
+		screen, err := tcell.NewScreen()
+		if err != nil {
+			return err
+		}
+		// tview only turns the mouse on for a screen it makes itself.
+		a.SetScreen(newGraphicsScreen(screen, protocol, width, height)).tv.EnableMouse(true)
+	}
 
 	return a.tv.Run()
 }
@@ -358,7 +371,7 @@ func (a *App) help() {
   r           reply                Q         quote
   s           star / unstar        P         give a pastel
   u           author's profile     o         open in browser
-  D           delete yours
+  i           view the images      D         delete yours
 
 [::b]Profile[::-]
   F           follow / unfollow    T         commits / replies

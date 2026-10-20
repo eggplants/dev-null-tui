@@ -52,6 +52,8 @@ dn whoami
 dn          
 ```
 
+`login`, `whoami` and `commit` can be shortened to `l`, `w` and `c` (e.g. `dn c 'Hello world!'`).
+
 ### Committing from the shell
 
 `dn commit` signs and pushes the commit with an Ed25519 or RSA key from your SSH agent or `~/.ssh`.

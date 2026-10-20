@@ -31,9 +31,10 @@ const usage = `Usage: dn [command]
 
 Commands:
   (none)                              Open the TUI
-  login [-base-url URL] [-key PATH]   Approve this TUI's SSH key as a device on the web
-  whoami                              Show the signed-in account
-  commit [-r REF] [-i PATH]... [--] [TEXT...]
+  login, l [-base-url URL] [-key PATH]
+                                      Approve this TUI's SSH key as a device on the web
+  whoami, w                           Show the signed-in account
+  commit, c [-r REF] [-i PATH]... [--] [TEXT...]
                                       Commit, signed with an SSH key on your GitHub account (no login needed)
   handle-url URL                      Forward a devnull:// callback to a waiting login (run by the desktop)
 
@@ -71,11 +72,11 @@ func run(args []string) error {
 	case "-v", "--version":
 		fmt.Println("dn", getVersion())
 		return nil
-	case "login":
+	case "login", "l":
 		return login(args[1:])
-	case "whoami":
+	case "whoami", "w":
 		return whoami()
-	case "commit":
+	case "commit", "c":
 		return commitCmd(args[1:])
 	case "handle-url":
 		if len(args) != 2 {

@@ -205,6 +205,10 @@ func TestReadsTheLogAndActsOnACommit(t *testing.T) {
 
 	h.typeText("c")
 	h.waitFor("New commit")
+	h.typeText("see https://example.com/" + strings.Repeat("a", 100))
+	// A link counts as 23 characters, as on the server.
+	h.waitFor("27/4000")
+	h.key(tcell.KeyCtrlU)
 	h.typeText("hello from the terminal")
 	h.waitFor("23/4000")
 	h.key(tcell.KeyCtrlS)
@@ -217,16 +221,16 @@ func TestReadsTheLogAndActsOnACommit(t *testing.T) {
 	}
 }
 
-func TestRefusesATooShortCommit(t *testing.T) {
+func TestRefusesABlankCommit(t *testing.T) {
 	fake := &fakeAPI{}
 	h := start(t, fake)
 	h.waitFor("abc1234")
 
 	h.typeText("c")
 	h.waitFor("New commit")
-	h.typeText("hi")
+	h.typeText("   ")
 	h.key(tcell.KeyCtrlS)
-	h.waitFor("A commit is 3 to 4000 characters.")
+	h.waitFor("A commit is 1 to 4000 characters")
 
 	fake.mu.Lock()
 	defer fake.mu.Unlock()

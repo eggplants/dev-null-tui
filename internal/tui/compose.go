@@ -16,12 +16,6 @@ import (
 	"github.com/eggplants/dev-null-tui/internal/commit"
 )
 
-// The server's limits on a commit's body, in characters.
-const (
-	minBodyLength = 3
-	maxBodyLength = 4000
-)
-
 type composeOptions struct {
 	parent *api.Commit
 	quoted *api.Commit
@@ -56,9 +50,9 @@ func (a *App) compose(opts composeOptions) {
 	form.SetBorder(true).SetTitle(title)
 
 	updateCounter := func() {
-		n := utf8.RuneCountInString(strings.TrimSpace(area.GetText()))
+		n, oversized := bodyLength(area.GetText())
 		color := colorMuted
-		if n > maxBodyLength {
+		if n > maxBodyLength || oversized {
 			color = "red"
 		}
 		counter.SetText(fmt.Sprintf("[%s]%d/%d  ^o image  ^s commit  esc cancel[-]", color, n, maxBodyLength))
@@ -155,8 +149,7 @@ func (a *App) submit(body string, opts composeOptions, images []attachment, fail
 		return
 	}
 
-	if n := utf8.RuneCountInString(body); n < minBodyLength || n > maxBodyLength {
-		a.flash("[red]A commit is %d to %d characters.[-]", minBodyLength, maxBodyLength)
+	if !a.checkLength(body) {
 		failed()
 		return
 	}
@@ -193,11 +186,30 @@ func (a *App) submit(body string, opts composeOptions, images []attachment, fail
 	})
 }
 
+// checkLength tells the user what is wrong with the body's length, if anything, before the server would.
+func (a *App) checkLength(body string) bool {
+	n, oversized := bodyLength(body)
+	switch {
+	case oversized:
+		a.flash("[red]Each link must not be greater than %d characters.[-]", maxURLLength)
+	case n < minBodyLength || n > maxBodyLength || utf8.RuneCountInString(body) > maxRawBodyLength:
+		a.flash("[red]A commit is %d to %d characters, counting each link as up to %d.[-]", minBodyLength, maxBodyLength, urlWeight)
+	default:
+		return true
+	}
+
+	return false
+}
+
 // submitWithImages sends a commit with images the way `dn commit --image` does, signed with an SSH key on the
 // user's GitHub account: the signed API only takes JSON, so it can't carry images.
 func (a *App) submitWithImages(body string, opts composeOptions, images []attachment, failed func()) {
-	if body == "" || utf8.RuneCountInString(body) > maxBodyLength {
-		a.flash("[red]A commit with images needs some text, up to %d characters.[-]", maxBodyLength)
+	if body == "" {
+		a.flash("[red]A commit with images needs some text.[-]")
+		failed()
+		return
+	}
+	if !a.checkLength(body) {
 		failed()
 		return
 	}

@@ -41,6 +41,8 @@ type App struct {
 	unread  int
 
 	statusTimer *time.Timer
+	// logPollInterval is how often the logs are asked for new commits.
+	logPollInterval time.Duration
 
 	// commitWithImages sends a commit with images, signed with an SSH key on the user's GitHub account.
 	commitWithImages func(ctx context.Context, opts commit.Options) (string, error)
@@ -56,6 +58,7 @@ func New(client *api.Client) *App {
 		status: tview.NewTextView().SetDynamicColors(true),
 
 		commitWithImages: commit.Run,
+		logPollInterval:  30 * time.Second,
 	}
 
 	a.header.SetHighlightedFunc(func(added, _, _ []string) {
@@ -105,6 +108,7 @@ func (a *App) Run(ctx context.Context) error {
 	a.hint()
 
 	go a.pollUnread(ctx)
+	go a.pollLogs(ctx)
 
 	return a.tv.Run()
 }
@@ -156,6 +160,9 @@ func (a *App) drawHeader() {
 		name := t.name
 		if t.name == "Notifications" && a.unread > 0 {
 			name += fmt.Sprintf(" [%s](%d)[-]", colorAccent, a.unread)
+		}
+		if f, ok := t.stack[0].(*commitFeed); ok && f.newCount > 0 {
+			name += fmt.Sprintf(" [%s]↑%d[-]", colorAccent, f.newCount)
 		}
 		fmt.Fprintf(&b, `["tab%d"] %d %s [""]`, i, i+1, name)
 	}
@@ -228,6 +235,26 @@ func (a *App) pollUnread(ctx context.Context) {
 			a.tv.QueueUpdateDraw(func() {
 				a.unread = me.UnreadNotificationsCount
 				a.drawHeader()
+			})
+		}
+	}
+}
+
+func (a *App) pollLogs(ctx context.Context) {
+	ticker := time.NewTicker(a.logPollInterval)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			a.tv.QueueUpdate(func() {
+				for _, t := range a.tabs {
+					if f, ok := t.stack[0].(*commitFeed); ok {
+						f.checkNewCommits()
+					}
+				}
 			})
 		}
 	}

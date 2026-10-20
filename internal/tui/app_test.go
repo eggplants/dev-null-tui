@@ -238,3 +238,74 @@ func TestRefusesABlankCommit(t *testing.T) {
 		t.Errorf("sent %q", fake.bodies)
 	}
 }
+
+// growingLog is a Following log that commits can be added on top of, which it counts for ?since= as the API does.
+type growingLog struct {
+	mu     sync.Mutex
+	bodies []string
+}
+
+func (g *growingLog) add(body string) {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	g.bodies = append([]string{body}, g.bodies...)
+}
+
+func (g *growingLog) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+
+	var out map[string]any
+	switch r.URL.Path {
+	case "/api/v1/me":
+		out = map[string]any{"data": map[string]any{"id": "u0", "username": "me", "name": "Me"}}
+	case "/api/v1/log/following":
+		commits := make([]any, len(g.bodies))
+		newer := -1
+		for i, body := range g.bodies {
+			commits[i] = map[string]any{"id": body, "short_hash": body, "body": body, "status": "approved", "author": map[string]any{"id": "u1", "username": "alice", "name": "Alice"}}
+			if body == r.URL.Query().Get("since") {
+				newer = i
+			}
+		}
+		out = map[string]any{"data": commits, "meta": map[string]any{"next_cursor": nil}}
+		if newer >= 0 {
+			out["new_commits_count"] = newer
+		}
+	default:
+		out = map[string]any{"data": []any{}, "meta": map[string]any{"next_cursor": nil}}
+	}
+
+	_ = json.NewEncoder(w).Encode(out)
+}
+
+func TestTakesInNewCommitsAtTheTop(t *testing.T) {
+	log := &growingLog{bodies: []string{"first-commit"}}
+	h := start(t, log, func(a *App) { a.logPollInterval = 50 * time.Millisecond })
+	h.waitFor("first-commit")
+
+	log.add("second-commit")
+	h.waitFor("second-commit")
+	if s := h.text(); strings.Contains(s, "↑") {
+		t.Errorf("the feed took the commit in, but still counts it:\n%s", s)
+	}
+}
+
+func TestCountsNewCommitsWhenScrolledDown(t *testing.T) {
+	log := &growingLog{bodies: []string{"newer-commit", "older-commit"}}
+	h := start(t, log, func(a *App) { a.logPollInterval = 50 * time.Millisecond })
+	h.waitFor("older-commit")
+
+	h.typeText("j")
+	h.waitUntil(func(s string) bool { return strings.Contains(s, "┃ older-commit") }, "select the older commit")
+	log.add("brand-new-1")
+	log.add("brand-new-2")
+	h.waitFor("Following ↑2")
+	if s := h.text(); strings.Contains(s, "brand-new") {
+		t.Errorf("the feed moved under the reader:\n%s", s)
+	}
+
+	h.typeText("R")
+	h.waitFor("brand-new-2")
+	h.waitForGone("↑2")
+}

@@ -19,6 +19,10 @@ type commitFeed struct {
 	focusID string
 	// keys handles the keys a particular feed adds, returning nil for those it used.
 	keys func(event *tcell.EventKey) *tcell.EventKey
+
+	// log is the log the feed shows, if it shows one, and newCount how many commits came in on top of it since.
+	log      api.Log
+	newCount int
 }
 
 func newCommitFeed(app *App, title, empty string, load func(ctx context.Context, cursor string) ([]*api.Commit, string, error)) *commitFeed {
@@ -46,13 +50,48 @@ func newLogFeed(app *App, log api.Log) *commitFeed {
 		empty = "Your log is empty. Follow some developers from Latest or Trending."
 	}
 
-	return newCommitFeed(app, string(log), empty, func(ctx context.Context, cursor string) ([]*api.Commit, string, error) {
+	f := newCommitFeed(app, string(log), empty, func(ctx context.Context, cursor string) ([]*api.Commit, string, error) {
 		page, err := app.client.Log(ctx, log, cursor)
 		if err != nil {
 			return nil, "", err
 		}
 
 		return pointers(page.Data), page.NextCursor, nil
+	})
+	f.log = log
+	f.afterReload = func() {
+		f.newCount = 0
+		app.drawHeader()
+	}
+
+	return f
+}
+
+// checkNewCommits asks whether commits came in on top of a log, as the web does every 30 seconds. A feed scrolled to
+// the top takes them in at once; one scrolled down keeps its place and counts them in its tab until it's reloaded.
+// Trending is ranked, so new commits don't go on top of it.
+func (f *commitFeed) checkNewCommits() {
+	if f.log == "" || f.log == api.LogTrending || !f.loaded || f.loading || len(f.items) == 0 {
+		return
+	}
+
+	since, generation := f.items[0].ID, f.generation
+	var n int
+	f.app.async(func(ctx context.Context) (err error) {
+		n, err = f.app.client.NewCommitsCount(ctx, f.log, since)
+		return err
+	}, func(err error) {
+		// Polling happens in the background, so a failure waits for the next try rather than interrupting.
+		if err != nil || n == 0 || generation != f.generation {
+			return
+		}
+
+		if f.selected == 0 && f.offset == 0 {
+			f.Reload()
+			return
+		}
+		f.newCount = n
+		f.app.drawHeader()
 	})
 }
 

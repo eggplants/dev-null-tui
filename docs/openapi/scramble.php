@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 // Scramble config copied into a checkout of dev-null.sh to export the OpenAPI documents published on GitHub Pages.
 // SCRAMBLE_API picks the API: v1 (the mobile app's, which dn uses) or cli (the `devnull commit` script's).
 

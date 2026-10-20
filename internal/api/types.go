@@ -136,10 +136,12 @@ func (p *Page[T]) UnmarshalJSON(data []byte) error {
 }
 
 // LogPage is a page of one of the three logs, with the people the API suggests when the Following log is empty.
+// NewCommitsCount is only set when the page was asked for the commits since one.
 type LogPage struct {
 	Page[Commit]
-	IsRanked    bool
-	Suggestions []User
+	IsRanked        bool
+	Suggestions     []User
+	NewCommitsCount int
 }
 
 func (p *LogPage) UnmarshalJSON(data []byte) error {
@@ -148,13 +150,14 @@ func (p *LogPage) UnmarshalJSON(data []byte) error {
 	}
 
 	var raw struct {
-		IsRanked    bool   `json:"is_ranked"`
-		Suggestions []User `json:"suggestions"`
+		IsRanked        bool   `json:"is_ranked"`
+		Suggestions     []User `json:"suggestions"`
+		NewCommitsCount int    `json:"new_commits_count"`
 	}
 	if err := json.Unmarshal(data, &raw); err != nil {
 		return err
 	}
-	p.IsRanked, p.Suggestions = raw.IsRanked, raw.Suggestions
+	p.IsRanked, p.Suggestions, p.NewCommitsCount = raw.IsRanked, raw.Suggestions, raw.NewCommitsCount
 
 	return nil
 }

@@ -166,3 +166,18 @@ func TestPageReadsEitherCursor(t *testing.T) {
 		t.Errorf("cursors = %q, %q", fromMeta.NextCursor, fromReplyPreview.NextCursor)
 	}
 }
+
+func TestNewCommitsCount(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.RequestURI() != "/api/v1/log/following?since=c1" {
+			t.Errorf("RequestURI = %q", r.URL.RequestURI())
+		}
+		_, _ = io.WriteString(w, `{"data":[],"is_ranked":false,"new_commits_count":3,"suggestions":[],"meta":{"next_cursor":null}}`)
+	}))
+	defer srv.Close()
+
+	n, err := New(srv.URL, newSigner(t)).NewCommitsCount(context.Background(), LogFollowing, "c1")
+	if err != nil || n != 3 {
+		t.Errorf("NewCommitsCount = %d, %v, want 3", n, err)
+	}
+}

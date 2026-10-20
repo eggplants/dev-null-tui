@@ -52,6 +52,15 @@ func (c *Client) Log(ctx context.Context, log Log, cursor string) (*LogPage, err
 	return &res, err
 }
 
+// NewCommitsCount counts the commits in a log newer than since, leaving out the user's own, as the web's "new commits"
+// button does. It is always 0 on a ranked log.
+func (c *Client) NewCommitsCount(ctx context.Context, log Log, since string) (int, error) {
+	var res LogPage
+	err := c.Do(ctx, http.MethodGet, withCursor("/api/v1/log/"+string(log), "", url.Values{"since": {since}}), nil, &res)
+
+	return res.NewCommitsCount, err
+}
+
 func (c *Client) Commit(ctx context.Context, id string) (*Thread, error) {
 	var res Thread
 	err := c.Do(ctx, http.MethodGet, "/api/v1/commits/"+url.PathEscape(id), nil, &res)

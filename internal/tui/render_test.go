@@ -101,6 +101,19 @@ func TestCommitLines(t *testing.T) {
 	}
 }
 
+func TestNotificationLines(t *testing.T) {
+	me := &api.User{Name: "Alice", Username: "alice"}
+	for typ, want := range map[string]string{
+		"starred":    "Alice starred your commit",
+		"leveled_up": "You reached a new level",
+	} {
+		got := stripTags(strings.Join(notificationLines(&api.Notification{Type: typ, Actor: me}, false, 60), "\n"))
+		if !strings.Contains(got, want) || typ == "leveled_up" && strings.Contains(got, "Alice") {
+			t.Errorf("%s notification:\n%s", typ, got)
+		}
+	}
+}
+
 var styleTag = regexp.MustCompile(`\[[a-zA-Z0-9#:\-]*\]`)
 
 func stripTags(s string) string {

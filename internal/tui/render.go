@@ -284,6 +284,8 @@ var notificationVerbs = map[string]string{
 	"starred":   "starred your commit",
 	"approved":  "Your commit was approved",
 	"rejected":  "Your commit was rejected",
+	// The API doesn't say which level, unlike the web.
+	"leveled_up": "You reached a new level",
 }
 
 func notificationLines(n *api.Notification, selected bool, width int) []string {
@@ -300,7 +302,7 @@ func notificationLines(n *api.Notification, selected bool, width int) []string {
 
 	var head string
 	switch n.Type {
-	case "approved", "rejected":
+	case "approved", "rejected", "leveled_up":
 		head = verb
 		if n.Reason != nil && *n.Reason != "" {
 			head += ": " + tview.Escape(*n.Reason)

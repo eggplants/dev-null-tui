@@ -23,6 +23,8 @@ type Settings struct {
 	PollInterval string `json:"poll_interval,omitempty"`
 	// Mouse turns the mouse on. DN_MOUSE overrides it.
 	Mouse *bool `json:"mouse,omitempty"`
+	// InlineImages shows commits' images in the lists, not only behind i. DN_INLINE_IMAGES overrides it.
+	InlineImages *bool `json:"inline_images,omitempty"`
 }
 
 // Setting is a setting's effective value and where it came from: "default", "settings.json" or an environment
@@ -37,6 +39,7 @@ type Effective struct {
 	Graphics     string
 	PollInterval time.Duration
 	Mouse        bool
+	InlineImages bool
 	Sources      []Setting
 }
 
@@ -104,7 +107,7 @@ func (s *Settings) Save() error {
 
 // Resolve applies the file and then the environment over the defaults, checking each value.
 func (s *Settings) Resolve(getenv func(string) string) (*Effective, error) {
-	e := &Effective{Theme: "auto", Graphics: "auto", PollInterval: 30 * time.Second, Mouse: true}
+	e := &Effective{Theme: "auto", Graphics: "auto", PollInterval: 30 * time.Second, Mouse: true, InlineImages: true}
 
 	pick := func(name, env, file, def string, valid func(string) error) (string, error) {
 		value, source := def, "default"
@@ -155,18 +158,27 @@ func (s *Settings) Resolve(getenv func(string) string) (*Effective, error) {
 	}
 	e.PollInterval, _ = time.ParseDuration(interval)
 
-	mouse := ""
-	if s.Mouse != nil {
-		mouse = strconv.FormatBool(*s.Mouse)
+	boolean := func(name, env string, file *bool) (bool, error) {
+		value := ""
+		if file != nil {
+			value = strconv.FormatBool(*file)
+		}
+		v, err := pick(name, env, value, "true", func(v string) error {
+			_, err := strconv.ParseBool(v)
+			return err
+		})
+		if err != nil {
+			return false, err
+		}
+		b, _ := strconv.ParseBool(v)
+		return b, nil
 	}
-	m, err := pick("mouse", "DN_MOUSE", mouse, "true", func(v string) error {
-		_, err := strconv.ParseBool(v)
-		return err
-	})
-	if err != nil {
+	if e.Mouse, err = boolean("mouse", "DN_MOUSE", s.Mouse); err != nil {
 		return nil, err
 	}
-	e.Mouse, _ = strconv.ParseBool(m)
+	if e.InlineImages, err = boolean("inline_images", "DN_INLINE_IMAGES", s.InlineImages); err != nil {
+		return nil, err
+	}
 
 	return e, nil
 }

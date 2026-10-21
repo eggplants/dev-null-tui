@@ -146,6 +146,7 @@ you mute and block. The theme follows the terminal's background unless you pick 
 | `graphics` | `DN_GRAPHICS` | `auto` | `auto`, `kitty`, `sixel` or `none` |
 | `poll_interval` | `DN_POLL_INTERVAL` | `30s` | How often new commits and notifications are checked for, 10s to 10m |
 | `mouse` | `DN_MOUSE` | `true` | |
+| `inline_images` | `DN_INLINE_IMAGES` | `true` | Show commits' images in the lists: in pixels with kitty graphics or sixel, and else in half blocks |
 
 ## Limitations
 

@@ -128,6 +128,7 @@ func open() error {
 	opts := tui.DefaultOptions()
 	opts.Theme, opts.Graphics = effective.Theme, effective.Graphics
 	opts.PollInterval, opts.Mouse = effective.PollInterval, effective.Mouse
+	opts.InlineImages = effective.InlineImages
 	opts.SaveTheme = func(name string) error {
 		settings.Theme = name
 		return settings.Save()

@@ -138,7 +138,8 @@ In the composer:
 `g s` in the TUI picks your color, turns pastéis mode on or off, takes your profile from GitHub again, and lists who
 you mute and block. The theme follows the terminal's background unless you pick one.
 
-`settings.json` next to the config takes these, and environment variables override it:
+It also switches the settings below, which take effect at once (`graphics` from the next start) and are kept in
+`settings.json` next to the config. You can edit that file too; environment variables override it:
 
 | Setting | Environment | Default | |
 | --- | --- | --- | --- |

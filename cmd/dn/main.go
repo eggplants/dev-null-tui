@@ -129,9 +129,17 @@ func open() error {
 	opts.Theme, opts.Graphics = effective.Theme, effective.Graphics
 	opts.PollInterval, opts.Mouse = effective.PollInterval, effective.Mouse
 	opts.InlineImages = effective.InlineImages
-	opts.SaveTheme = func(name string) error {
-		settings.Theme = name
+	opts.SaveSetting = func(name, value string) error {
+		if err := settings.Set(name, value); err != nil {
+			return err
+		}
 		return settings.Save()
+	}
+	opts.Locked = map[string]string{}
+	for name, env := range config.SettingEnv {
+		if os.Getenv(env) != "" {
+			opts.Locked[name] = env
+		}
 	}
 	if opts.DraftPath, err = config.DraftPath(); err != nil {
 		return err

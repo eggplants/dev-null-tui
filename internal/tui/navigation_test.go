@@ -219,3 +219,42 @@ func TestQQuotesRatherThanQuits(t *testing.T) {
 	h.key(tcell.KeyEscape)
 	h.waitForGone("Quote")
 }
+
+func TestChangesTheTUIsSettings(t *testing.T) {
+	var mu sync.Mutex
+	saved := map[string]string{}
+	h := start(t, &richAPI{}, func(a *App) {
+		a.opts.SaveSetting = func(name, value string) error {
+			mu.Lock()
+			defer mu.Unlock()
+			saved[name] = value
+			return nil
+		}
+		a.opts.Locked = map[string]string{"mouse": "DN_MOUSE"}
+	})
+	h.waitFor("abc1234")
+
+	h.typeText("gs")
+	h.waitFor("Check every")
+	h.waitFor("set by $DN_MOUSE")
+
+	// Theme, then Images, two rows down from Pastéis mode.
+	h.typeText("jjj")
+	h.waitFor("shows commits' images in the lists")
+	h.key(tcell.KeyEnter)
+	h.waitFor("Commits' images only show behind i.")
+
+	h.typeText("jjj")
+	h.waitFor("how often new commits")
+	h.key(tcell.KeyEnter)
+	h.waitFor("checked for every 1m")
+
+	mu.Lock()
+	defer mu.Unlock()
+	if saved["inline_images"] != "false" || saved["poll_interval"] != "1m" {
+		t.Errorf("saved %v", saved)
+	}
+	if imageRows != 0 || h.app.opts.PollInterval != time.Minute {
+		t.Errorf("not in effect: %d rows, every %s", imageRows, h.app.opts.PollInterval)
+	}
+}

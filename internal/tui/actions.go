@@ -6,6 +6,7 @@ import (
 	"net/url"
 	"regexp"
 	"strings"
+	"time"
 
 	"github.com/gdamore/tcell/v2"
 	"github.com/rivo/tview"
@@ -163,11 +164,33 @@ func (a *App) recolorMe() {
 	})
 }
 
-// saveTheme keeps the theme for the next run, if the app was given a way to.
-func (a *App) saveTheme(name string) error {
-	if a.opts.SaveTheme == nil {
+// saveSetting keeps a setting for the next run, if the app was given a way to.
+func (a *App) saveSetting(name, value string) error {
+	if a.opts.SaveSetting == nil {
 		return nil
 	}
 
-	return a.opts.SaveTheme(name)
+	return a.opts.SaveSetting(name, value)
+}
+
+// setInlineImages shows commits' images in the lists, or stops, laying every view out again.
+func (a *App) setInlineImages(on bool) {
+	imageRows = 0
+	if on {
+		imageRows = 8
+	}
+	a.views(func(v view) {
+		if i, ok := v.(interface{ Invalidate() }); ok {
+			i.Invalidate()
+		}
+	})
+}
+
+// setPollInterval has the polling go on at d from now.
+func (a *App) setPollInterval(d time.Duration) {
+	a.opts.PollInterval = d
+	select {
+	case a.pollEvery <- d:
+	default:
+	}
 }

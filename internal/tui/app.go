@@ -46,8 +46,10 @@ type Options struct {
 	Theme string
 	// Graphics is "kitty", "sixel", "none" or "auto", which asks the terminal.
 	Graphics string
-	// SaveTheme keeps the theme picked in the settings for the next run.
-	SaveTheme func(name string) error
+	// SaveSetting keeps a setting changed in the settings for the next run, by its settings.json name.
+	SaveSetting func(name, value string) error
+	// Locked are the settings an environment variable sets, by their name, which win over settings.json.
+	Locked map[string]string
 	// DraftPath is where a new commit's draft is kept between runs.
 	DraftPath string
 	// System is what the app does outside its screen and the API; nil is the machine's own.
@@ -100,6 +102,10 @@ type App struct {
 	pendingReview map[string]*api.Commit
 	// quietUntil holds polling back after the server said to slow down.
 	quietUntil time.Time
+	// pollEvery hands the polling a new interval.
+	pollEvery chan time.Duration
+	// protocol is how the terminal draws images, for the settings to say.
+	protocol graphicsProtocol
 
 	// commitWithImages sends a commit with images, signed with an SSH key on the user's GitHub account.
 	commitWithImages func(ctx context.Context, opts commit.Options) (string, error)
@@ -121,6 +127,7 @@ func NewWithOptions(client *api.Client, opts Options) *App {
 		status: tview.NewBox(),
 
 		pendingReview:    map[string]*api.Commit{},
+		pollEvery:        make(chan time.Duration, 1),
 		commitWithImages: commit.Run,
 	}
 	a.body = newColumn(maxColumnWidth)
@@ -224,6 +231,7 @@ func (a *App) Run(ctx context.Context) error {
 		if err != nil {
 			return err
 		}
+		a.protocol = protocol
 		gs := newGraphicsScreen(screen, protocol, areaWidth, areaHeight)
 		a.SetScreen(gs)
 		// tview only turns the mouse and pasting on for a screen it makes itself.
@@ -734,6 +742,9 @@ func (a *App) poll(ctx context.Context) {
 		select {
 		case <-ctx.Done():
 			return
+		case d := <-a.pollEvery:
+			ticker.Reset(d)
+			continue
 		case <-ticker.C:
 		}
 

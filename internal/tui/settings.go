@@ -4,7 +4,9 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strconv"
 	"strings"
+	"time"
 
 	"github.com/gdamore/tcell/v2"
 	"github.com/rivo/tview"
@@ -29,12 +31,10 @@ type settingsView struct {
 	app *App
 	// lane is the lane picked with ← and →, before Enter saves it: -1 is the automatic one.
 	lane int
-	// saveTheme keeps the theme picked for the next run, when the app can.
-	saveTheme func(name string) error
 }
 
 func newSettings(app *App) *settingsView {
-	s := &settingsView{app: app, lane: -1, saveTheme: app.saveTheme}
+	s := &settingsView{app: app, lane: -1}
 	if app.me != nil && app.me.PreferredLane != nil {
 		s.lane = *app.me.PreferredLane
 	}
@@ -55,12 +55,16 @@ func newSettings(app *App) *settingsView {
 			help:  "⏎ turns it on or off: 10 pastéis a day to give, and their counts shown",
 			enter: s.togglePasteis,
 		},
-		{
-			label: "Theme",
-			value: func() string { return app.opts.Theme },
-			help:  "⏎ cycles auto, dark and light; auto follows the terminal",
-			enter: s.cycleTheme,
-		},
+		s.local("Theme", "theme", "⏎ cycles them; auto follows the terminal's background",
+			[]string{"auto", "dark", "light"}, func() string { return app.opts.Theme }, s.applyTheme),
+		s.local("Images", "inline_images", "⏎ shows commits' images in the lists, or only behind i",
+			[]string{"true", "false"}, func() string { return strconv.FormatBool(app.opts.InlineImages) }, s.applyInlineImages),
+		s.local("Graphics", "graphics", "⏎ cycles how images are drawn, from when dn starts again; auto asks the terminal",
+			[]string{"auto", "kitty", "sixel", "none"}, func() string { return app.opts.Graphics }, s.applyGraphics),
+		s.local("Mouse", "mouse", "⏎ turns clicking and scrolling with the mouse on or off",
+			[]string{"true", "false"}, func() string { return strconv.FormatBool(app.opts.Mouse) }, s.applyMouse),
+		s.local("Check every", "poll_interval", "⏎ cycles how often new commits and notifications are checked for",
+			pollIntervals, func() string { return shortDuration(app.opts.PollInterval) }, s.applyPollInterval),
 		{
 			label: "Profile",
 			value: func() string {
@@ -245,13 +249,61 @@ func (s *settingsView) saveMe(action func(ctx context.Context) (*api.CurrentUser
 	})
 }
 
-func (s *settingsView) cycleTheme() {
-	next := map[string]string{"auto": "dark", "dark": "light", "light": "auto"}[s.app.opts.Theme]
-	if next == "" {
-		next = "auto"
-	}
-	s.app.opts.Theme = next
+// pollIntervals are the intervals the settings go through, as settings.json takes them.
+var pollIntervals = []string{"10s", "30s", "1m", "5m", "10m"}
 
+// shortDuration writes d the way settings.json takes it, 1m rather than 1m0s.
+func shortDuration(d time.Duration) string {
+	switch {
+	case d%time.Minute == 0:
+		return fmt.Sprintf("%dm", d/time.Minute)
+	default:
+		return d.String()
+	}
+}
+
+// local is a setting of the TUI's own, kept in settings.json, whose Enter moves it on to the next of values: apply
+// puts it in effect now, and then it's saved for the next run.
+func (s *settingsView) local(label, name, help string, values []string, current func() string, apply func(string) string) *setting {
+	shown := func() string {
+		v := current()
+		switch v {
+		case "true":
+			v = "on"
+		case "false":
+			v = "off"
+		}
+		if env := s.app.opts.Locked[name]; env != "" {
+			v += fmt.Sprintf(" [%s](set by $%s, which wins when dn starts)[-]", colorWarning, env)
+		}
+		return v
+	}
+
+	return &setting{
+		label: label,
+		value: shown,
+		help:  help,
+		enter: func() {
+			next := values[0]
+			for i, v := range values {
+				if v == current() {
+					next = values[(i+1)%len(values)]
+				}
+			}
+
+			done := apply(next)
+			if err := s.app.saveSetting(name, next); err != nil {
+				s.app.fail("Couldn't keep it for next time: %s", tview.Escape(err.Error()))
+				return
+			}
+			s.Invalidate()
+			s.app.succeed("%s", done)
+		},
+	}
+}
+
+func (s *settingsView) applyTheme(next string) string {
+	s.app.opts.Theme = next
 	p := darkPalette
 	switch next {
 	case "light":
@@ -261,13 +313,42 @@ func (s *settingsView) cycleTheme() {
 	}
 	s.app.setTheme(p)
 
-	if s.saveTheme != nil {
-		if err := s.saveTheme(next); err != nil {
-			s.app.fail("Couldn't keep the theme for next time: %s", tview.Escape(err.Error()))
-			return
-		}
+	return "Theme: " + next + "."
+}
+
+func (s *settingsView) applyInlineImages(next string) string {
+	on := next == "true"
+	s.app.opts.InlineImages = on
+	s.app.setInlineImages(on)
+	if on {
+		return "Commits' images show in the lists."
 	}
-	s.app.succeed("Theme: %s.", next)
+
+	return "Commits' images only show behind i."
+}
+
+func (s *settingsView) applyGraphics(next string) string {
+	s.app.opts.Graphics = next
+
+	return fmt.Sprintf("Graphics: %s, from when dn starts again (now %s).", next, s.app.protocol)
+}
+
+func (s *settingsView) applyMouse(next string) string {
+	on := next == "true"
+	s.app.opts.Mouse = on
+	s.app.tv.EnableMouse(on)
+	if on {
+		return "The mouse is on."
+	}
+
+	return "The mouse is off."
+}
+
+func (s *settingsView) applyPollInterval(next string) string {
+	d, _ := time.ParseDuration(next)
+	s.app.setPollInterval(d)
+
+	return "New commits and notifications are checked for every " + next + "."
 }
 
 func (s *settingsView) InputHandler() func(event *tcell.EventKey, setFocus func(p tview.Primitive)) {

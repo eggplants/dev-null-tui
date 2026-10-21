@@ -23,7 +23,13 @@ type Config struct {
 	Username string `json:"username,omitempty"`
 }
 
+// Dir is where dn keeps its files: $XDG_CONFIG_HOME/devnull-tui when XDG_CONFIG_HOME is set, as it's honored on
+// macOS too, and else the OS's config directory.
 func Dir() (string, error) {
+	if dir := os.Getenv("XDG_CONFIG_HOME"); filepath.IsAbs(dir) {
+		return filepath.Join(dir, "devnull-tui"), nil
+	}
+
 	dir, err := os.UserConfigDir()
 	if err != nil {
 		return "", err

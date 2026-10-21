@@ -34,6 +34,7 @@ Commands:
   login, l [-base-url URL] [-key PATH]
                                       Approve this TUI's SSH key as a device on the web
   whoami, w                           Show the signed-in account
+  config                              Show the TUI's settings and where each comes from
   commit, c [-r REF] [-i PATH]... [--] [TEXT...]
                                       Commit, signed with an SSH key on your GitHub account (no login needed)
   handle-url URL                      Forward a devnull:// callback to a waiting login (run by the desktop)
@@ -76,6 +77,8 @@ func run(args []string) error {
 		return login(args[1:])
 	case "whoami", "w":
 		return whoami()
+	case "config":
+		return showConfig(os.Stdout)
 	case "commit", "c":
 		return commitCmd(args[1:])
 	case "handle-url":
@@ -113,10 +116,65 @@ func open() error {
 		return err
 	}
 
+	settings, err := config.LoadSettings()
+	if err != nil {
+		return err
+	}
+	effective, err := settings.Resolve(os.Getenv)
+	if err != nil {
+		return err
+	}
+
+	opts := tui.DefaultOptions()
+	opts.Theme, opts.Graphics = effective.Theme, effective.Graphics
+	opts.PollInterval, opts.Mouse = effective.PollInterval, effective.Mouse
+	opts.SaveTheme = func(name string) error {
+		settings.Theme = name
+		return settings.Save()
+	}
+	if opts.DraftPath, err = config.DraftPath(); err != nil {
+		return err
+	}
+
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	return tui.New(c).Run(ctx)
+	return tui.NewWithOptions(c, opts).Run(ctx)
+}
+
+// showConfig prints the effective settings, where each came from, and where dn keeps its files.
+func showConfig(w io.Writer) error {
+	settings, err := config.LoadSettings()
+	if err != nil {
+		return err
+	}
+	effective, err := settings.Resolve(os.Getenv)
+	if err != nil {
+		return err
+	}
+
+	for _, s := range effective.Sources {
+		fmt.Fprintf(w, "%-14s %-8s (%s)\n", s.Name, s.Value, s.Source)
+	}
+
+	dir, err := config.Dir()
+	if err != nil {
+		return err
+	}
+	settingsPath, _ := config.SettingsPath()
+	fmt.Fprintf(w, "\nconfig dir     %s\nsettings       %s\n", dir, settingsPath)
+
+	cfg, err := config.Load()
+	switch {
+	case errors.Is(err, os.ErrNotExist):
+		fmt.Fprintln(w, "account        not signed in (dn login)")
+	case err != nil:
+		return err
+	default:
+		fmt.Fprintf(w, "account        @%s on %s\nkey            %s\n", cfg.Username, cfg.BaseURL, cfg.KeyPath)
+	}
+
+	return nil
 }
 
 func login(args []string) error {

@@ -87,3 +87,61 @@ func TestDrawsAvatarsInPixels(t *testing.T) {
 		return strings.Contains(tty.out.String(), "\x1b_Ga=T,f=100")
 	}, "send the avatar to the terminal")
 }
+
+// pinnedAPI is alice's profile, whose pinned commit has an image, above another of her commits.
+func pinnedAPI(w http.ResponseWriter, r *http.Request) {
+	if r.URL.Path == "/image.png" {
+		_ = png.Encode(w, image.NewGray(image.Rect(0, 0, 16, 9)))
+		return
+	}
+
+	alice := map[string]any{"id": "u1", "username": "alice", "name": "Alice", "lane": 2}
+	commit := func(id, body string, images ...any) map[string]any {
+		return map[string]any{
+			"id": id, "short_hash": id + "00000", "body": body, "status": "approved", "author": alice,
+			"created_at": time.Now().Format(time.RFC3339), "images": images,
+		}
+	}
+	var out any = map[string]any{"data": []any{}, "meta": map[string]any{"next_cursor": nil}}
+	switch r.URL.Path {
+	case "/api/v1/me":
+		out = map[string]any{"data": map[string]any{"id": "u0", "username": "me", "name": "Me"}}
+	case "/api/v1/users/alice":
+		image := map[string]any{"id": "i1", "url": "http://" + r.Host + "/image.png", "width": 16, "height": 9}
+		out = map[string]any{"data": alice, "pinned_commit": commit("p1", "pinned one", image)}
+	case "/api/v1/users/alice/commits":
+		out = map[string]any{"data": []any{commit("c1", "another one")}, "meta": map[string]any{"next_cursor": nil}}
+	}
+	_ = json.NewEncoder(w).Encode(out)
+}
+
+func TestSelectsThePinnedCommitAndDrawsItsImages(t *testing.T) {
+	tty := &fakeTty{}
+	h := startOn(t, http.HandlerFunc(pinnedAPI), func(sim tcell.SimulationScreen) tcell.Screen {
+		return newGraphicsScreen(ttyScreen{sim, tty}, graphicsKitty, 0, 0)
+	}, func(a *App) {
+		rows := imageRows
+		imageRows = 4
+		t.Cleanup(func() { imageRows = rows })
+	})
+	h.waitFor("Following")
+
+	h.typeText("/")
+	h.waitFor("Go to")
+	h.typeText("@alice")
+	h.key(tcell.KeyEnter)
+	h.waitFor("◇ Pinned")
+	h.waitFor("pinned one")
+	h.waitFor("another one")
+
+	// The pinned commit is the first one, selected, and its image is sent to the terminal.
+	h.waitFor("i images")
+	h.waitUntil(func(string) bool {
+		tty.mu.Lock()
+		defer tty.mu.Unlock()
+		return strings.Contains(tty.out.String(), "\x1b_Ga=T,f=100")
+	}, "send the pinned commit's image to the terminal")
+
+	h.typeText("j")
+	h.waitForGone("i images")
+}

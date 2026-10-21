@@ -23,6 +23,8 @@ type commitFeed struct {
 	hints func() []hint
 	// byDay puts the day above the first commit made on it, for a list in the order the commits were made.
 	byDay bool
+	// pinned is the commit kept on top of the feed, above the ones it loads, as a profile's pinned commit is.
+	pinned *api.Commit
 
 	// log is the log the feed shows, if it shows one, and newCount how many commits came in on top of it since.
 	log      api.Log
@@ -66,6 +68,12 @@ func newCommitFeed(app *App, title string, empty []string, load func(ctx context
 	}
 	f.load = load
 	f.divider = f.dayDivider
+	f.top = func() []*api.Commit {
+		if f.pinned == nil {
+			return nil
+		}
+		return []*api.Commit{f.pinned}
+	}
 	f.onActivate = func() {
 		if c, ok := f.Selected(); ok {
 			f.open(c)
@@ -85,13 +93,17 @@ func newCommitFeed(app *App, title string, empty []string, load func(ctx context
 	return f
 }
 
-// dayDivider names the day above the first commit made on it, in a list that has them in that order.
+// dayDivider names the day above the first commit made on it, in a list that has them in that order, and marks the
+// pinned commit above them.
 func (f *commitFeed) dayDivider(prev, c *api.Commit, width int) []string {
+	if c == f.pinned {
+		return []string{dividerLine("◇ Pinned", width)}
+	}
 	if !f.byDay || c.CreatedAt.IsZero() {
 		return nil
 	}
 	label := dayLabel(c.CreatedAt)
-	if prev != nil && !prev.CreatedAt.IsZero() && dayLabel(prev.CreatedAt) == label {
+	if prev != nil && prev != f.pinned && !prev.CreatedAt.IsZero() && dayLabel(prev.CreatedAt) == label {
 		return nil
 	}
 
@@ -215,10 +227,15 @@ func (f *commitFeed) prepend(c *api.Commit) {
 		}
 	}
 
+	// It goes under the pinned commit, which stays on top.
+	at := 0
+	if len(f.items) > 0 && f.items[0] == f.pinned {
+		at = 1
+	}
 	copied := *c
-	f.selected = 0
+	f.selected = at
 	f.offset = 0
-	f.SetItems(append([]*api.Commit{&copied}, f.items...))
+	f.SetItems(append(f.items[:at:at], append([]*api.Commit{&copied}, f.items[at:]...)...))
 	f.SetFooter()
 	if f.cursor == "" {
 		f.SetFooter(f.end)
@@ -349,7 +366,28 @@ func (f *commitFeed) eachCommit(fn func(c *api.Commit)) {
 	}
 }
 
+// pin keeps c on top of the feed, in place of the commit pinned before; nil unpins it.
+func (f *commitFeed) pin(c *api.Commit) {
+	items := f.items
+	if len(items) > 0 && f.pinned != nil && items[0] == f.pinned {
+		items = items[1:]
+		f.selected = max(f.selected-1, 0)
+	}
+	f.pinned = c
+	// A feed still loading gets it with its first page.
+	if c != nil && f.loaded {
+		items = append([]*api.Commit{c}, items...)
+		if f.selected > 0 {
+			f.selected++
+		}
+	}
+	f.SetItems(items)
+}
+
 func (f *commitFeed) removeCommit(id string) {
+	if f.pinned != nil && f.pinned.ID == id {
+		f.pinned = nil
+	}
 	for i := len(f.items) - 1; i >= 0; i-- {
 		c := f.items[i]
 		if c.ID == id && c.ID != f.focusID {

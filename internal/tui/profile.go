@@ -122,6 +122,9 @@ func (p *profileView) Reload() {
 			return
 		}
 		p.profile = profile
+		if f, ok := p.tabs[0].(*commitFeed); ok {
+			f.pin(profile.PinnedCommit)
+		}
 		p.invalidate()
 	})
 	p.tab().Reload()
@@ -135,7 +138,8 @@ func (p *profileView) invalidate() {
 	}
 }
 
-// header is what every tab shows above its list: the profile, the pinned commit and the tabs.
+// header is what every tab shows above its list: the profile and the tabs. The pinned commit is the first of the
+// commits, so it can be selected and shows its images.
 func (p *profileView) header(width int) []string {
 	if p.profile == nil {
 		return []string{fmt.Sprintf("   [%s]Reading @%s from /dev/null…[-]", colorMuted, tview.Escape(p.username))}
@@ -146,10 +150,6 @@ func (p *profileView) header(width int) []string {
 		me, left = p.app.me.Username, p.app.me.PasteisRemaining
 	}
 	lines := profileLines(p.profile, me, left, width)
-	if pinned := p.profile.PinnedCommit; pinned != nil && p.current == 0 {
-		lines = append(lines, "", dividerLine("◇ Pinned", width))
-		lines = append(lines, commitLines(pinned, false, false, width)...)
-	}
 
 	return append(lines, "", profileTabs(profileTabNames, p.current, width), fmt.Sprintf("[%s]%s[-]", theme.hairline, strings.Repeat("─", max(width, 0))))
 }

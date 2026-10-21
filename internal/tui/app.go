@@ -224,7 +224,7 @@ func (a *App) Run(ctx context.Context) error {
 	}
 	a.switchTab(0)
 
-	go a.poll(ctx)
+	go a.poll(ctx, a.opts.PollInterval)
 
 	if a.screen == nil {
 		screen, err := tcell.NewScreen()
@@ -734,8 +734,9 @@ func (a *App) anyLoading() bool {
 
 // poll asks for unread notifications, new commits on the logs and the review of the user's pending commits, as the
 // web does every 30 seconds.
-func (a *App) poll(ctx context.Context) {
-	ticker := time.NewTicker(a.opts.PollInterval)
+// The interval is handed in, as the settings may change a.opts while it starts.
+func (a *App) poll(ctx context.Context, interval time.Duration) {
+	ticker := time.NewTicker(interval)
 	defer ticker.Stop()
 
 	for {

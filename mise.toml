@@ -4,7 +4,7 @@ claude = "latest" # [skip ci]
 go = "1.27"
 goreleaser = "latest"
 pinact = "latest" # [skip ci]
-ttyd = "latest" # [skip ci]
+ttyd = { version = "latest", os = ["linux", "windows"] } # [skip ci] aqua has no macOS build; brew install ttyd
 vhs = "latest"
 yq = "latest"
 

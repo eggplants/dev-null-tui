@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"runtime"
 	"slices"
 	"strings"
 	"sync"
@@ -43,14 +44,19 @@ func TestCompletePath(t *testing.T) {
 func TestImagePathTakesPastedFiles(t *testing.T) {
 	want := "/home/me/Pictures/Screenshots/Screenshot From 2026-10-20 04-04-48.png"
 
-	for _, pasted := range []string{
+	pastes := []string{
 		want,
 		"  " + want + " ",
 		"'" + want + "' ",
 		`"` + want + `"`,
-		`/home/me/Pictures/Screenshots/Screenshot\ From\ 2026-10-20\ 04-04-48.png`,
 		"file:///home/me/Pictures/Screenshots/Screenshot%20From%202026-10-20%2004-04-48.png",
-	} {
+	}
+	// A backslash is a path separator on Windows, not an escape.
+	if runtime.GOOS != "windows" {
+		pastes = append(pastes, `/home/me/Pictures/Screenshots/Screenshot\ From\ 2026-10-20\ 04-04-48.png`)
+	}
+
+	for _, pasted := range pastes {
 		if got := imagePath(pasted); got != want {
 			t.Errorf("imagePath(%q) = %q", pasted, got)
 		}

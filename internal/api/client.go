@@ -42,11 +42,18 @@ type Client struct {
 	HTTPClient *http.Client
 }
 
+// maxResponseSize is the most of an answer the client reads, far more than any page of the API.
+const maxResponseSize = 4 << 20
+
 func New(baseURL string, signer ssh.Signer) *Client {
 	return &Client{
-		BaseURL:    strings.TrimRight(baseURL, "/"),
-		Signer:     signer,
-		HTTPClient: &http.Client{Timeout: 30 * time.Second},
+		BaseURL: strings.TrimRight(baseURL, "/"),
+		Signer:  signer,
+		HTTPClient: &http.Client{
+			Timeout: 30 * time.Second,
+			// A redirect would send the signed request somewhere it wasn't signed for.
+			CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse },
+		},
 	}
 }
 
@@ -81,11 +88,17 @@ func (c *Client) Do(ctx context.Context, method, path string, in, out any) error
 	}
 	defer res.Body.Close()
 
-	data, err := io.ReadAll(res.Body)
+	data, err := io.ReadAll(io.LimitReader(res.Body, maxResponseSize+1))
 	if err != nil {
 		return err
 	}
+	if len(data) > maxResponseSize {
+		return fmt.Errorf("the answer to %s %s is larger than %d MB", method, path, maxResponseSize>>20)
+	}
 
+	if res.StatusCode >= 300 && res.StatusCode < 400 {
+		return &Error{Status: res.StatusCode, Message: "the server redirected to " + res.Header.Get("Location")}
+	}
 	if res.StatusCode >= 400 {
 		apiErr := &Error{Status: res.StatusCode}
 		if json.Unmarshal(data, apiErr) != nil || apiErr.Message == "" {
@@ -102,7 +115,12 @@ func (c *Client) Do(ctx context.Context, method, path string, in, out any) error
 		return nil
 	}
 
-	return json.Unmarshal(data, out)
+	if err := json.Unmarshal(data, out); err != nil {
+		return err
+	}
+	sanitize(out)
+
+	return nil
 }
 
 // sign signs "<timestamp>\n<nonce>\n<METHOD>\n<path and query>\n<body>", as the server's SignedRequests reads it.

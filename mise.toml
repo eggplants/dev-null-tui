@@ -12,7 +12,7 @@ yq = "latest"
 depends = ["ci"]
 
 [tasks.ci]
-depends = ["goreleaser", "vet", "test", "fmt"]
+depends = ["goreleaser", "vet", "test", "fmt", "vulncheck"]
 
 [tasks.goreleaser]
 run = "goreleaser check"
@@ -21,7 +21,10 @@ run = "goreleaser check"
 run = "go vet ./..."
 
 [tasks.test]
-run = "go test ./..."
+run = "go test -race ./..."
+
+[tasks.vulncheck]
+run = "go run golang.org/x/vuln/cmd/govulncheck@latest ./..."
 
 [tasks.build]
 run = "go build ./cmd/dn"

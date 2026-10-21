@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"net"
 	"strings"
 	"time"
@@ -49,6 +50,8 @@ type Options struct {
 	SaveTheme func(name string) error
 	// DraftPath is where a new commit's draft is kept between runs.
 	DraftPath string
+	// System is what the app does outside its screen and the API; nil is the machine's own.
+	System System
 }
 
 func DefaultOptions() Options {
@@ -63,6 +66,8 @@ type App struct {
 	opts   Options
 	// autoTheme is the palette that suits the terminal's background.
 	autoTheme palette
+	// sys opens links, copies, edits and keeps the draft.
+	sys System
 
 	root   *tview.Pages
 	layout *tview.Flex
@@ -145,10 +150,23 @@ func NewWithOptions(client *api.Client, opts Options) *App {
 	a.root.AddPage("main", layout, true, true)
 
 	a.autoTheme = darkPalette
-	draftPath = opts.DraftPath
+	a.sys = opts.System
+	if a.sys == nil {
+		a.sys = &osSystem{draftPath: opts.DraftPath, tty: a.tty}
+	}
 	a.tv.SetRoot(&sizeGuard{Pages: a.root}, true).EnableMouse(opts.Mouse).SetInputCapture(a.globalKeys)
 
 	return a
+}
+
+// tty is the terminal the app draws on, if it draws on one.
+func (a *App) tty() (io.Writer, bool) {
+	if a.screen == nil {
+		return nil, false
+	}
+	tty, ok := a.screen.Tty()
+
+	return tty, ok
 }
 
 // SetScreen draws the TUI on screen instead of the terminal, as tests do.

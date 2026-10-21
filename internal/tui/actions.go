@@ -2,21 +2,15 @@ package tui
 
 import (
 	"context"
-	"encoding/base64"
-	"errors"
 	"fmt"
 	"net/url"
-	"os"
-	"os/exec"
 	"regexp"
-	"runtime"
 	"strings"
 
 	"github.com/gdamore/tcell/v2"
 	"github.com/rivo/tview"
 
 	"github.com/eggplants/dev-null-tui/internal/api"
-	"github.com/eggplants/dev-null-tui/internal/browser"
 )
 
 // openURL opens a link from the API in the browser, if it's http(s), and on the instance's own host when sameHost is
@@ -32,104 +26,18 @@ func (a *App) openURL(link string, sameHost bool) {
 		return
 	}
 
-	if err := browser.Open(u.String()); err != nil {
+	if err := a.sys.Open(u.String()); err != nil {
 		a.flashError(err)
 	}
 }
 
 // copyLink puts a commit's link on the clipboard.
 func (a *App) copyLink(c *api.Commit) {
-	if err := a.copyText(c.HTMLURL); err != nil {
+	if err := a.sys.Copy(c.HTMLURL); err != nil {
 		a.flashError(err)
 		return
 	}
 	a.succeed("Copied link to %s.", c.ShortHash)
-}
-
-// copyText puts text on the clipboard with the first clipboard command there is, and else asks the terminal to with
-// OSC 52, which also works over SSH.
-func (a *App) copyText(text string) error {
-	for _, cmd := range clipboardCommands() {
-		if _, err := exec.LookPath(cmd[0]); err != nil {
-			continue
-		}
-		c := exec.Command(cmd[0], cmd[1:]...)
-		c.Stdin = strings.NewReader(text)
-		if c.Run() == nil {
-			return nil
-		}
-	}
-
-	if a.screen == nil {
-		return errors.New("there's no clipboard to copy to")
-	}
-	if tty, ok := a.screen.Tty(); ok {
-		_, err := fmt.Fprintf(tty, "\x1b]52;c;%s\x07", base64.StdEncoding.EncodeToString([]byte(text)))
-		return err
-	}
-
-	return errors.New("there's no clipboard to copy to")
-}
-
-func clipboardCommands() [][]string {
-	// Over SSH, the clipboard of the machine dn runs on isn't the one the user has; OSC 52 reaches theirs.
-	if os.Getenv("SSH_TTY") != "" {
-		return nil
-	}
-
-	switch runtime.GOOS {
-	case "darwin":
-		return [][]string{{"pbcopy"}}
-	case "windows":
-		return [][]string{{"clip"}}
-	}
-
-	return [][]string{{"wl-copy"}, {"xclip", "-selection", "clipboard"}, {"xsel", "--clipboard", "--input"}}
-}
-
-// clipboardImage saves the image on the clipboard to a temporary PNG and returns its path.
-func clipboardImage(ctx context.Context) (string, error) {
-	f, err := os.CreateTemp("", "dn-clipboard-*.png")
-	if err != nil {
-		return "", err
-	}
-	path := f.Name()
-	f.Close()
-
-	var cmd *exec.Cmd
-	switch runtime.GOOS {
-	case "darwin":
-		script := fmt.Sprintf(`set f to open for access POSIX file %q with write permission
-write (the clipboard as «class PNGf») to f
-close access f`, path)
-		cmd = exec.CommandContext(ctx, "osascript", "-e", script)
-	default:
-		var out []byte
-		if _, err := exec.LookPath("wl-paste"); err == nil {
-			out, err = exec.CommandContext(ctx, "wl-paste", "--type", "image/png").Output()
-			if err != nil {
-				return "", errors.New("the clipboard has no image")
-			}
-		} else if _, err := exec.LookPath("xclip"); err == nil {
-			out, err = exec.CommandContext(ctx, "xclip", "-selection", "clipboard", "-t", "image/png", "-o").Output()
-			if err != nil {
-				return "", errors.New("the clipboard has no image")
-			}
-		} else {
-			return "", errors.New("pasting an image needs wl-paste or xclip")
-		}
-		return path, os.WriteFile(path, out, 0o600)
-	}
-
-	if out, err := cmd.CombinedOutput(); err != nil {
-		os.Remove(path)
-		if strings.Contains(string(out), "-1700") || strings.Contains(string(out), "class PNGf") {
-			return "", errors.New("the clipboard has no image")
-		}
-		return "", fmt.Errorf("reading the clipboard: %s", strings.TrimSpace(string(out)))
-	}
-
-	return path, nil
 }
 
 // report asks why a commit should be reported and sends it to the moderators.

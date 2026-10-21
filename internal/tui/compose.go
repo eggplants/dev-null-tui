@@ -4,8 +4,6 @@ import (
 	"context"
 	"fmt"
 	"html"
-	"os"
-	"os/exec"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -70,7 +68,7 @@ func (a *App) compose(opts composeOptions) {
 	}
 
 	if about == nil {
-		if draft := loadDraft(); draft != "" {
+		if draft := a.sys.Draft(); draft != "" {
 			area.SetText(draft, true)
 		}
 	}
@@ -175,12 +173,12 @@ func (a *App) compose(opts composeOptions) {
 			switch {
 			case text == "" && len(images) == 0:
 				if about == nil {
-					saveDraft("")
+					a.sys.SaveDraft("")
 				}
 				closeComposer()
 			case about == nil:
 				// A new commit's text is kept for next time, as the web's stash@{0}.
-				saveDraft(area.GetText())
+				a.sys.SaveDraft(area.GetText())
 				closeComposer()
 				a.flash("Draft kept in stash@{0}. c brings it back.")
 			default:
@@ -192,7 +190,7 @@ func (a *App) compose(opts composeOptions) {
 				submitting = true
 				a.submit(strings.TrimSpace(area.GetText()), opts, images, func() { submitting = false }, func() {
 					if about == nil {
-						saveDraft("")
+						a.sys.SaveDraft("")
 					}
 				})
 			}
@@ -342,83 +340,23 @@ func (a *App) confirmDiscard(area *tview.TextArea) {
 	a.openModal("discard", modal)
 }
 
-// draftPath is where a new commit's draft is kept between runs, which the app sets.
-var draftPath string
-
-func loadDraft() string {
-	if draftPath == "" {
-		return ""
-	}
-	data, err := os.ReadFile(draftPath)
-	if err != nil {
-		return ""
-	}
-
-	return string(data)
-}
-
-// saveDraft keeps text as the draft, or forgets the draft when text is blank.
-func saveDraft(text string) {
-	if draftPath == "" {
-		return
-	}
-	if strings.TrimSpace(text) == "" {
-		_ = os.Remove(draftPath)
-		return
-	}
-	if err := os.MkdirAll(filepath.Dir(draftPath), 0o700); err == nil {
-		_ = os.WriteFile(draftPath, []byte(text), 0o600)
-	}
-}
-
-// editInEditor hands the text to $VISUAL or $EDITOR, and takes back what was saved.
+// editInEditor hands the text to the user's editor, with the terminal theirs until they're done.
 func (a *App) editInEditor(area *tview.TextArea) {
-	editor := os.Getenv("VISUAL")
-	if editor == "" {
-		editor = os.Getenv("EDITOR")
-	}
-	if editor == "" {
-		editor = "vi"
-	}
-
-	f, err := os.CreateTemp("", "dn-commit-*.md")
+	var text string
+	var err error
+	a.tv.Suspend(func() { text, err = a.sys.Edit(area.GetText()) })
 	if err != nil {
 		a.flashError(err)
 		return
 	}
-	defer os.Remove(f.Name())
-	_, err = f.WriteString(area.GetText())
-	f.Close()
-	if err != nil {
-		a.flashError(err)
-		return
-	}
-
-	var runErr error
-	a.tv.Suspend(func() {
-		// The editor may be a command with arguments, like "code --wait".
-		cmd := exec.Command("sh", "-c", editor+` "$1"`, "sh", f.Name())
-		cmd.Stdin, cmd.Stdout, cmd.Stderr = os.Stdin, os.Stdout, os.Stderr
-		runErr = cmd.Run()
-	})
-	if runErr != nil {
-		a.fail("%s exited: %s", tview.Escape(editor), tview.Escape(runErr.Error()))
-		return
-	}
-
-	data, err := os.ReadFile(f.Name())
-	if err != nil {
-		a.flashError(err)
-		return
-	}
-	area.SetText(strings.TrimRight(string(data), "\n"), true)
+	area.SetText(text, true)
 }
 
 // pasteImage attaches the image on the clipboard, saved to a temporary file.
 func (a *App) pasteImage(attach func(attachment)) {
 	var path string
 	a.act(func(ctx context.Context) (err error) {
-		path, err = clipboardImage(ctx)
+		path, err = a.sys.ClipboardImage(ctx)
 		return err
 	}, func(err error) {
 		if err != nil {

@@ -30,6 +30,7 @@ func (f *richAPI) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	commit := map[string]any{
 		"id": "11111111-2222-3333-4444-555555555555", "short_hash": "abc1234", "body": "hello @alice", "status": "approved",
 		"created_at": time.Now().Add(-time.Hour).Format(time.RFC3339), "author": alice, "stars_count": 1,
+		"html_url": "http://" + r.Host + "/@alice/commits/11111111-2222-3333-4444-555555555555",
 		"mentions": []any{map[string]any{"username": "alice", "offset": 6, "length": 6}},
 	}
 	page := func(data ...any) map[string]any {
@@ -62,6 +63,11 @@ func (f *richAPI) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	case "GET /api/v1/notifications":
 		f.types = append(f.types, r.URL.Query().Get("type"))
 		out = page(map[string]any{"id": "n1", "type": "starred", "actor": alice, "actors_count": 3, "created_at": time.Now().Format(time.RFC3339), "commit": commit})
+	case "POST /api/v1/commits":
+		var in map[string]string
+		_ = json.NewDecoder(r.Body).Decode(&in)
+		w.WriteHeader(http.StatusCreated)
+		out = map[string]any{"data": map[string]any{"id": "c9", "short_hash": "9999999", "body": in["body"], "status": "approved", "author": me}}
 	case "GET /api/v1/notifications/n1/group":
 		out = page(map[string]any{"id": "g1", "type": "starred", "actor": me, "actors_count": 1, "created_at": time.Now().Format(time.RFC3339)})
 	case "POST /api/v1/commits/11111111-2222-3333-4444-555555555555/reports":

@@ -52,10 +52,12 @@ type Options struct {
 	DraftPath string
 	// System is what the app does outside its screen and the API; nil is the machine's own.
 	System System
+	// InlineImages shows commits' images in the lists, not only behind i.
+	InlineImages bool
 }
 
 func DefaultOptions() Options {
-	return Options{PollInterval: 30 * time.Second, Mouse: true, Theme: "auto", Graphics: "auto"}
+	return Options{PollInterval: 30 * time.Second, Mouse: true, Theme: "auto", Graphics: "auto", InlineImages: true}
 }
 
 type App struct {
@@ -68,6 +70,8 @@ type App struct {
 	autoTheme palette
 	// sys opens links, copies, edits and keeps the draft.
 	sys System
+	// thumbs are the images the lists show.
+	thumbs *thumbs
 
 	root   *tview.Pages
 	layout *tview.Flex
@@ -150,6 +154,11 @@ func NewWithOptions(client *api.Client, opts Options) *App {
 	a.root.AddPage("main", layout, true, true)
 
 	a.autoTheme = darkPalette
+	a.thumbs = newThumbs(a)
+	imageRows = 0
+	if opts.InlineImages {
+		imageRows = 8
+	}
 	a.sys = opts.System
 	if a.sys == nil {
 		a.sys = &osSystem{draftPath: opts.DraftPath, tty: a.tty}
@@ -180,13 +189,14 @@ func (a *App) SetScreen(screen tcell.Screen) *App {
 // Run signs in with /api/v1/me and runs the TUI until the user quits.
 func (a *App) Run(ctx context.Context) error {
 	var protocol graphicsProtocol
-	var cellWidth, cellHeight int
+	// areaWidth and areaHeight are the terminal's text area in pixels, if it said.
+	var areaWidth, areaHeight int
 	if a.screen == nil {
 		// The terminal is asked about itself before tcell takes it over and would read the answers as keys.
 		answer := probeTerminal(a.opts)
 		a.autoTheme = pickTheme("auto", answer)
 		applyTheme(pickTheme(a.opts.Theme, answer))
-		protocol, cellWidth, cellHeight = detectGraphics(a.opts.Graphics, answer)
+		protocol, areaWidth, areaHeight = detectGraphics(a.opts.Graphics, answer)
 	}
 	a.paint()
 
@@ -214,9 +224,24 @@ func (a *App) Run(ctx context.Context) error {
 		if err != nil {
 			return err
 		}
-		a.SetScreen(newGraphicsScreen(screen, protocol, cellWidth, cellHeight))
+		gs := newGraphicsScreen(screen, protocol, areaWidth, areaHeight)
+		a.SetScreen(gs)
 		// tview only turns the mouse and pasting on for a screen it makes itself.
 		a.tv.EnableMouse(a.opts.Mouse).EnablePaste(true)
+		if protocol != graphicsNone {
+			// The screen only knows its cells' size once it's started, which tview does in Run.
+			a.tv.SetAfterDrawFunc(func(tcell.Screen) {
+				if w, h := gs.cellSize(); w > 0 && h > 0 && (w != cellWidth || h != cellHeight) {
+					cellWidth, cellHeight = w, h
+					a.views(func(v view) {
+						if i, ok := v.(interface{ Invalidate() }); ok {
+							i.Invalidate()
+						}
+					})
+					go a.tv.QueueUpdateDraw(func() {})
+				}
+			})
+		}
 	}
 
 	return a.tv.Run()

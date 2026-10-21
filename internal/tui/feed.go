@@ -33,18 +33,28 @@ type commitFeed struct {
 	checking bool
 	// expanded are the replies shown under the commits o opened, by the commit's id.
 	expanded map[string][]api.Commit
+	// strips are where each commit's images go in its lines, and how many rows they take.
+	strips map[*api.Commit][2]int
 }
 
 func newCommitFeed(app *App, title string, empty []string, load func(ctx context.Context, cursor string) ([]*api.Commit, string, error)) *commitFeed {
-	f := &commitFeed{expanded: map[string][]api.Commit{}}
+	f := &commitFeed{expanded: map[string][]api.Commit{}, strips: map[*api.Commit][2]int{}}
 	f.pager = newPager(app, title, empty, func(c *api.Commit, selected bool, width int) []string {
+		shown := c
 		if replies, ok := f.expanded[c.ID]; ok {
-			shown := *c
-			shown.ReplyPreview = &api.Page[api.Commit]{Data: replies}
-			return commitLines(&shown, selected, c.ID == f.focusID, width)
+			copied := *c
+			copied.ReplyPreview = &api.Page[api.Commit]{Data: replies}
+			shown = &copied
 		}
-		return commitLines(c, selected, c.ID == f.focusID, width)
+		l := commitLayout(shown, selected, c.ID == f.focusID, width)
+		f.strips[c] = [2]int{l.strip, l.rows}
+		return l.lines
 	})
+	f.overlay = func(screen tcell.Screen, c *api.Commit, top, x, y, width, height int) {
+		if s, ok := f.strips[c]; ok && s[0] >= 0 && c.DeletedAt == nil {
+			app.drawImages(screen, c.Images, x+gutterWidth, top+s[0], width-gutterWidth, s[1], y, height)
+		}
+	}
 	f.load = load
 	f.divider = f.dayDivider
 	f.onActivate = func() {

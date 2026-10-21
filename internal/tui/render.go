@@ -22,6 +22,14 @@ var now = time.Now
 // showPasteis says whether the signed-in user is in pastéis mode: like the web, only then are pastéis counted.
 var showPasteis bool
 
+// imageRows is how many rows a commit's images take in a list, or 0 to only say it has them. The commit a thread
+// is about gets half as many again.
+var imageRows = 0
+
+// cellWidth and cellHeight are a cell's shape in pixels, which the images are laid out by: 1 × 2 for half blocks,
+// and the terminal's own when it draws pixels.
+var cellWidth, cellHeight = 1, 2
+
 // automaticLane is the lane the web gives someone who picked none, from their id.
 func automaticLane(id string) int {
 	var hash uint32
@@ -273,6 +281,26 @@ func hash(c *api.Commit) string {
 // commitLines renders a commit for a list as a node on its author's rail. full shows the whole body and when it was
 // made, as the commit a thread is about does.
 func commitLines(c *api.Commit, selected, full bool, width int) []string {
+	return commitLayout(c, selected, full, width).lines
+}
+
+// layout is a commit's lines, with where the rows its images are drawn over start, or -1 when it has none.
+type layout struct {
+	lines []string
+	strip int
+	rows  int
+}
+
+// stripRows is how many rows a commit's images take.
+func stripRows(full bool) int {
+	if full {
+		return imageRows * 3 / 2
+	}
+
+	return imageRows
+}
+
+func commitLayout(c *api.Commit, selected, full bool, width int) layout {
 	color := laneColor(c.Author)
 	inner := max(width-gutterWidth, 1)
 	rail := gutter(selected, "│", color)
@@ -282,7 +310,7 @@ func commitLines(c *api.Commit, selected, full bool, width int) []string {
 		if c.RepliesCount > 0 {
 			lines = append(lines, gutter(selected, " ", colorRail)+fmt.Sprintf("[%s]↩ %s[-]", colorMuted, count(c.RepliesCount)))
 		}
-		return append(lines, separator(colorRail))
+		return layout{lines: append(lines, separator(colorRail)), strip: -1}
 	}
 
 	node := "●"
@@ -304,6 +332,19 @@ func commitLines(c *api.Commit, selected, full bool, width int) []string {
 		body = foldLines(body, 10)
 	}
 	lines = append(lines, prefixed(rail, body)...)
+	strip, rows := -1, 0
+	if most := stripRows(full); most > 0 && len(c.Images) > 0 {
+		// Images cut down to fit the width are shorter, and the strip is only as tall as the tallest.
+		for _, b := range stripBoxes(c.Images, inner, most, cellWidth, cellHeight) {
+			rows = max(rows, b.rows)
+		}
+		if rows > 0 {
+			strip = len(lines)
+			for range rows {
+				lines = append(lines, rail)
+			}
+		}
+	}
 	lines = append(lines, prefixed(rail, attachmentLines(c, inner))...)
 	lines = append(lines, rail+countsLine(c))
 	if full && !c.CreatedAt.IsZero() {
@@ -323,7 +364,7 @@ func commitLines(c *api.Commit, selected, full bool, width int) []string {
 		}
 	}
 
-	return append(lines, separator(color))
+	return layout{lines: append(lines, separator(color)), strip: strip, rows: rows}
 }
 
 // attachmentLines renders what a commit carries besides its body: a poll, images, a link card and a quote.

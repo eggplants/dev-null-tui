@@ -12,6 +12,8 @@ import (
 	"testing"
 
 	"github.com/gdamore/tcell/v2"
+
+	"github.com/eggplants/dev-null-tui/internal/api"
 )
 
 func TestHasSixel(t *testing.T) {
@@ -184,4 +186,34 @@ func TestViewsACommitsImages(t *testing.T) {
 
 	h.key(tcell.KeyEscape)
 	h.waitFor("2 images · 8×4 · i to view")
+}
+
+func TestShowsImagesInTheList(t *testing.T) {
+	h := start(t, http.HandlerFunc(imageAPI))
+	h.waitFor("2 images · 8×4 · i to view")
+
+	// The simulation screen has no graphics protocol, so the first image is drawn in half blocks, and the one that
+	// isn't there is marked.
+	h.waitUntil(func(screen string) bool {
+		rows := strings.Split(screen, "\n")
+		return len(rows) > 3 && strings.Contains(strings.Join(rows[3:], "\n"), "▀▀▀") && strings.Contains(screen, "✕")
+	}, "draw the images")
+}
+
+func TestStripBoxesFitTheirImages(t *testing.T) {
+	wide := api.Image{Width: 1600, Height: 900}
+	tall := api.Image{Width: 600, Height: 1200}
+
+	// At 1×2 a cell, 8 rows of a 16:9 image are 28 cells wide, and a tall one 8.
+	boxes := stripBoxes([]api.Image{wide, tall}, 80, 8, 1, 2)
+	if len(boxes) != 2 || boxes[0] != (imageBox{x: 0, cols: 28, rows: 8}) || boxes[1] != (imageBox{x: 29, cols: 8, rows: 8}) {
+		t.Errorf("boxes = %+v", boxes)
+	}
+
+	// Three wide images in 40 cells are cut to 12 cells each, and shorter to keep their shape.
+	for _, b := range stripBoxes([]api.Image{wide, wide, wide, wide}, 40, 8, 1, 2) {
+		if b.cols != 12 || b.rows != 3 {
+			t.Errorf("box %+v", b)
+		}
+	}
 }

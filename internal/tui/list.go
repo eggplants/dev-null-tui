@@ -23,6 +23,10 @@ type listView[T any] struct {
 	onLast func()
 	// onActivate runs when the selected item is clicked again, as Enter would open it.
 	onActivate func()
+	// overlay, if set, draws over an item once its lines are drawn, as its images are. top is the screen row of the
+	// item's first line, which may be above or below the list's rectangle (x, y, width, height); it must not draw
+	// outside that.
+	overlay func(screen tcell.Screen, item T, top, x, y, width, height int)
 
 	lines []string
 	// starts is the first line of each item, its divider included, and heads the first line of the item itself.
@@ -175,6 +179,14 @@ func (l *listView[T]) Draw(screen tcell.Screen) {
 			}
 		}
 		tview.Print(screen, l.lines[line], x, y+row, width-1, tview.AlignLeft, ink)
+	}
+
+	if l.overlay != nil {
+		for i, item := range l.items {
+			if l.starts[i+1] > l.offset && l.heads[i] < l.offset+height {
+				l.overlay(screen, item, y+l.heads[i]-l.offset, x, y, width-1, height)
+			}
+		}
 	}
 
 	// A list longer than the screen has a scrollbar on its right edge.

@@ -175,6 +175,33 @@ func picture(w http.ResponseWriter, name string) {
 	_ = png.Encode(w, img)
 }
 
+// identicon draws an avatar the way GitHub makes one for those without: a mirrored 5 × 5 pattern in a color of
+// the name's.
+func identicon(w http.ResponseWriter, name string) {
+	h := fnv.New64a()
+	h.Write([]byte(name))
+	sum := h.Sum64()
+	r, g, b := hsv(float64(sum%360)/360, 0.5, 0.85)
+
+	const cell = 16
+	img := image.NewRGBA(image.Rect(0, 0, 5*cell, 5*cell))
+	for y := range 5 * cell {
+		for x := range 5 * cell {
+			col := x / cell
+			if col > 2 {
+				col = 4 - col
+			}
+			if sum>>(uint(y/cell)*3+uint(col))&1 == 1 {
+				img.Set(x, y, color.RGBA{r, g, b, 255})
+			} else {
+				img.Set(x, y, color.RGBA{240, 240, 240, 255})
+			}
+		}
+	}
+	w.Header().Set("Content-Type", "image/png")
+	_ = png.Encode(w, img)
+}
+
 func hsv(h, s, v float64) (uint8, uint8, uint8) {
 	h -= math.Floor(h)
 	i := int(h * 6)
@@ -240,6 +267,10 @@ func topLevel(c *commit) bool { return c.ParentID == "" }
 func (s *server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if name, ok := strings.CutPrefix(r.URL.Path, "/img/"); ok {
 		picture(w, name)
+		return
+	}
+	if name, ok := strings.CutPrefix(r.URL.Path, "/avatar/"); ok {
+		identicon(w, name)
 		return
 	}
 
@@ -399,6 +430,9 @@ func main() {
 		log.Fatal(err)
 	}
 	base = "http://" + ln.Addr().String()
+	for _, u := range []user{you, noor, sam, mika} {
+		u["avatar_url"] = base + "/avatar/" + u["username"].(string) + ".png"
+	}
 	cfg := &config.Config{BaseURL: base, KeyPath: keyPath, Username: "you"}
 	if err := cfg.Save(); err != nil {
 		log.Fatal(err)

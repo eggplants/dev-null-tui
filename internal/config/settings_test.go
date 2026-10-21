@@ -34,3 +34,25 @@ func TestResolveRefusesBadSettings(t *testing.T) {
 		}
 	}
 }
+
+func TestSetSettings(t *testing.T) {
+	s := &Settings{}
+	for name, value := range map[string]string{"theme": "light", "graphics": "none", "poll_interval": "1m", "mouse": "false", "inline_images": "false"} {
+		if err := s.Set(name, value); err != nil {
+			t.Errorf("Set(%s, %s): %v", name, value, err)
+		}
+	}
+	e, err := s.Resolve(func(string) string { return "" })
+	if err != nil || e.Theme != "light" || e.Graphics != "none" || e.PollInterval != time.Minute || e.Mouse || e.InlineImages {
+		t.Errorf("resolved %+v, %v", e, err)
+	}
+
+	for name, value := range map[string]string{"theme": "blue", "poll_interval": "1s", "mouse": "maybe", "colour": "red"} {
+		if err := s.Set(name, value); err == nil {
+			t.Errorf("Set(%s, %s) was taken", name, value)
+		}
+	}
+	if s.Theme != "light" {
+		t.Errorf("a refused value changed the settings: %+v", s)
+	}
+}

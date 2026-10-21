@@ -105,6 +105,47 @@ func (s *Settings) Save() error {
 	return os.WriteFile(p, append(data, '\n'), 0o600)
 }
 
+// SettingEnv is the environment variable that overrides each setting.
+var SettingEnv = map[string]string{
+	"theme":         "DN_THEME",
+	"graphics":      "DN_GRAPHICS",
+	"poll_interval": "DN_POLL_INTERVAL",
+	"mouse":         "DN_MOUSE",
+	"inline_images": "DN_INLINE_IMAGES",
+}
+
+// Set changes a setting by its name in settings.json, refusing a value Resolve wouldn't take.
+func (s *Settings) Set(name, value string) error {
+	next := *s
+	switch name {
+	case "theme":
+		next.Theme = value
+	case "graphics":
+		next.Graphics = value
+	case "poll_interval":
+		next.PollInterval = value
+	case "mouse", "inline_images":
+		b, err := strconv.ParseBool(value)
+		if err != nil {
+			return fmt.Errorf("%s: %w", name, err)
+		}
+		if name == "mouse" {
+			next.Mouse = &b
+		} else {
+			next.InlineImages = &b
+		}
+	default:
+		return fmt.Errorf("there's no setting %q", name)
+	}
+
+	if _, err := next.Resolve(func(string) string { return "" }); err != nil {
+		return err
+	}
+	*s = next
+
+	return nil
+}
+
 // Resolve applies the file and then the environment over the defaults, checking each value.
 func (s *Settings) Resolve(getenv func(string) string) (*Effective, error) {
 	e := &Effective{Theme: "auto", Graphics: "auto", PollInterval: 30 * time.Second, Mouse: true, InlineImages: true}

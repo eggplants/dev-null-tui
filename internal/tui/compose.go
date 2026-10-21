@@ -164,6 +164,11 @@ func (a *App) compose(opts composeOptions) {
 
 	submitting := false
 	area.SetInputCapture(func(event *tcell.EventKey) *tcell.EventKey {
+		// Ctrl+Enter commits as on the web, in the terminals that tell it from Enter.
+		if event.Key() == tcell.KeyEnter && event.Modifiers()&(tcell.ModCtrl|tcell.ModMeta) != 0 {
+			event = tcell.NewEventKey(tcell.KeyCtrlS, 0, tcell.ModCtrl)
+		}
+
 		switch event.Key() {
 		case tcell.KeyEscape:
 			text := strings.TrimSpace(area.GetText())

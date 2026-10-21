@@ -31,11 +31,18 @@ type commitFeed struct {
 	suggestions []api.User
 	// checking is set while the log is asked for new commits, so a slow answer isn't asked for again.
 	checking bool
+	// expanded are the replies shown under the commits o opened, by the commit's id.
+	expanded map[string][]api.Commit
 }
 
 func newCommitFeed(app *App, title string, empty []string, load func(ctx context.Context, cursor string) ([]*api.Commit, string, error)) *commitFeed {
-	f := &commitFeed{}
+	f := &commitFeed{expanded: map[string][]api.Commit{}}
 	f.pager = newPager(app, title, empty, func(c *api.Commit, selected bool, width int) []string {
+		if replies, ok := f.expanded[c.ID]; ok {
+			shown := *c
+			shown.ReplyPreview = &api.Page[api.Commit]{Data: replies}
+			return commitLines(&shown, selected, c.ID == f.focusID, width)
+		}
 		return commitLines(c, selected, c.ID == f.focusID, width)
 	})
 	f.load = load
@@ -282,19 +289,26 @@ func (f *commitFeed) Hints() []hint {
 		hints = append(hints, hint{"⏎", "open"})
 	}
 	hints = append(hints, hint{"r", "reply"})
+	if c.RepliesCount > 0 && c.ID != f.focusID {
+		if _, ok := f.expanded[c.ID]; ok {
+			hints = append(hints, hint{"o", "hide replies"})
+		} else {
+			hints = append(hints, hint{"o", "replies"})
+		}
+	}
 	if c.Starred {
 		hints = append(hints, hint{"s", "unstar"})
 	} else {
 		hints = append(hints, hint{"s", "star"})
 	}
-	hints = append(hints, hint{"Q", "quote"}, hint{"u", "author"})
+	hints = append(hints, hint{"q", "quote"}, hint{"u", "author"})
 	if len(c.Images) > 0 {
 		hints = append(hints, hint{"i", "images"})
 	}
 	if f.hints != nil {
 		hints = append(hints, f.hints()...)
 	}
-	hints = append(hints, hint{"y", "copy link"}, hint{"o", "browser"})
+	hints = append(hints, hint{"y", "copy link"}, hint{"w", "browser"})
 	if f.app.me != nil && c.Author != nil && c.Author.ID == f.app.me.ID {
 		hints = append(hints, hint{"D", "delete"})
 	}
@@ -383,7 +397,7 @@ func (f *commitFeed) commitKeys(event *tcell.EventKey) *tcell.EventKey {
 		f.open(c)
 	case 'r':
 		f.reply(c)
-	case 'Q':
+	case 'q':
 		f.app.compose(composeOptions{quoted: c})
 	case 's':
 		star := !c.Starred
@@ -395,6 +409,8 @@ func (f *commitFeed) commitKeys(event *tcell.EventKey) *tcell.EventKey {
 			f.app.push(newProfile(f.app, c.Author.Username))
 		}
 	case 'o':
+		f.toggleReplies(c)
+	case 'w':
 		f.app.openURL(c.HTMLURL, true)
 	case 'y':
 		f.app.copyLink(c)
@@ -457,10 +473,40 @@ func (f *commitFeed) update(c *api.Commit, action func(ctx context.Context) (*ap
 	})
 }
 
+// toggleReplies shows a commit's replies under it in the list, as o does on the web, or hides them again.
+func (f *commitFeed) toggleReplies(c *api.Commit) {
+	if _, ok := f.expanded[c.ID]; ok {
+		delete(f.expanded, c.ID)
+		f.Invalidate()
+		return
+	}
+	switch {
+	case c.ID == f.focusID:
+		f.app.flash("Its replies are right below it.")
+		return
+	case c.RepliesCount == 0:
+		f.app.flash("No replies yet. r replies.")
+		return
+	}
+
+	var page *api.Page[api.Commit]
+	f.app.act(func(ctx context.Context) (err error) {
+		page, err = f.app.client.Replies(ctx, c.ID, "", false)
+		return err
+	}, func(err error) {
+		if err != nil {
+			f.app.flashError(err)
+			return
+		}
+		f.expanded[c.ID] = page.Data
+		f.Invalidate()
+	})
+}
+
 // givePastel gives the commit a pastel, saying how many the user has left today.
 func (f *commitFeed) givePastel(c *api.Commit) {
 	if !showPasteis {
-		f.app.flash("Turn pastéis mode on in the settings (g S) to give pastéis.")
+		f.app.flash("Turn pastéis mode on in the settings (g s) to give pastéis.")
 		return
 	}
 

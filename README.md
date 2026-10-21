@@ -88,7 +88,8 @@ On Linux, `login` registers `dn` as the desktop's handler for `devnull://` links
 
 ### Keys
 
-The status bar shows the keys that work on what is selected, and `?` all of them.
+The keys are the web's where it has them. The status bar shows the ones that work on what is selected, and `?` all of
+them.
 
 | Key | Action |
 | --- | --- |
@@ -96,18 +97,19 @@ The status bar shows the keys that work on what is selected, and `?` all of them
 | `gg` `G` | First / last |
 | `^d` `^u` | Page down / up |
 | `1`–`6` `Tab` | Following, Latest, Trending, Notifications, Starred, Profile |
-| `g` then `f` `l` `e` `n` `s` `p` | Following, Latest, Trending, Notifications, Starred, Profile |
-| `g` `S` | Settings |
+| `g` then `l` `e` `p` `s` | Your log (Following), Trending, Profile, Settings, as on the web |
+| `g` then `a` `n` `b` | Latest, Notifications, Starred |
 | `/` `^k` | Go to an `@username`, a profile's or commit's link, or a hash on screen |
 | `⏎` `l` (or click it again) | Open the thread; on the open commit, reply |
 | `Esc` `h` `⌫` | Back |
 | `c` | New commit |
-| `r` / `Q` | Reply / quote |
+| `r` / `q` | Reply / quote |
+| `o` | Show / hide the replies under a commit |
 | `s` | Star |
 | `P` | Give a pastel (in pastéis mode) |
 | `u` | Open the author's profile |
 | `y` | Copy the link (over SSH too, with OSC 52) |
-| `o` | Open in the browser |
+| `w` | Open in the browser |
 | `i` | View the images |
 | `D` | Delete your commit |
 | `!` | Report a commit |
@@ -116,13 +118,13 @@ The status bar shows the keys that work on what is selected, and `?` all of them
 | `f` / `e` | Filter notifications by kind / list everyone in a group |
 | `R` | Refresh |
 | `?` | Help |
-| `q` | Back, or quit on a tab |
+| `Q` `^c` | Quit |
 
 In the composer:
 
 | Key | Action |
 | --- | --- |
-| `^s` | Commit |
+| `^s` `^⏎` | Commit (`^⏎` where the terminal tells it from `⏎`) |
 | `Esc` | Close; a new commit's text is kept as a draft for the next `c` |
 | `^e` | Write it in `$VISUAL` or `$EDITOR` |
 | `^p` | Preview |
@@ -133,7 +135,7 @@ In the composer:
 
 ### Settings
 
-`g S` in the TUI picks your color, turns pastéis mode on or off, takes your profile from GitHub again, and lists who
+`g s` in the TUI picks your color, turns pastéis mode on or off, takes your profile from GitHub again, and lists who
 you mute and block. The theme follows the terminal's background unless you pick one.
 
 `settings.json` next to the config takes these, and environment variables override it:

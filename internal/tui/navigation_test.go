@@ -86,7 +86,7 @@ func TestGoesPlacesWithG(t *testing.T) {
 	h.typeText("n")
 	h.waitFor("Alice and 2 others starred your commit")
 
-	h.typeText("gS")
+	h.typeText("gs")
 	h.waitFor("Pastéis mode")
 	h.waitFor("Notifications › Settings")
 }
@@ -167,4 +167,49 @@ func TestFitsEveryScreenSize(t *testing.T) {
 
 	h := start(t, &richAPI{}, func(a *App) { a.screen.(tcell.SimulationScreen).SetSize(30, 8) })
 	h.waitFor("Make the terminal a")
+}
+
+// repliesAPI is a log with one commit that has replies, for o.
+type repliesAPI struct{ richAPI }
+
+func (f *repliesAPI) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	alice := map[string]any{"id": "u1", "username": "alice", "name": "Alice"}
+	switch r.URL.Path {
+	case "/api/v1/log/following":
+		_ = json.NewEncoder(w).Encode(map[string]any{"data": []any{map[string]any{
+			"id": "c1", "short_hash": "abc1234", "body": "root", "status": "approved", "author": alice, "replies_count": 2,
+		}}, "meta": map[string]any{"next_cursor": nil}})
+	case "/api/v1/commits/c1/replies":
+		_ = json.NewEncoder(w).Encode(map[string]any{"data": []any{
+			map[string]any{"id": "r1", "short_hash": "1111111", "body": "first reply", "author": alice},
+			map[string]any{"id": "r2", "short_hash": "2222222", "body": "second reply", "author": alice},
+		}, "meta": map[string]any{"next_cursor": nil}})
+	default:
+		f.richAPI.ServeHTTP(w, r)
+	}
+}
+
+func TestShowsAndHidesRepliesWithO(t *testing.T) {
+	h := start(t, &repliesAPI{})
+	h.waitFor("abc1234")
+	h.waitFor("o replies")
+
+	h.typeText("o")
+	h.waitFor("first reply")
+	h.waitFor("second reply")
+	h.waitFor("o hide replies")
+
+	h.typeText("o")
+	h.waitForGone("second reply")
+}
+
+func TestQQuotesRatherThanQuits(t *testing.T) {
+	h := start(t, &richAPI{})
+	h.waitFor("abc1234")
+
+	// q quotes the commit, as on the web, rather than quitting.
+	h.typeText("q")
+	h.waitFor("Quote")
+	h.key(tcell.KeyEscape)
+	h.waitForGone("Quote")
 }

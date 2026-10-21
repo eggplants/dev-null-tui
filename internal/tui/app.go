@@ -487,7 +487,7 @@ func (a *App) drawStatus(screen tcell.Screen, x, y, width, height int) (int, int
 }
 
 // gHints are the places g goes, shown while it waits for the next key.
-var gHints = []hint{{"g", "top"}, {"f", "following"}, {"l", "latest"}, {"e", "trending"}, {"n", "notifications"}, {"s", "starred"}, {"p", "profile"}, {"S", "settings"}}
+var gHints = []hint{{"g", "top"}, {"l", "your log"}, {"a", "latest"}, {"e", "trending"}, {"n", "notifications"}, {"b", "starred"}, {"p", "profile"}, {"s", "settings"}}
 
 // hintsText lays hints out in width, dropping those that don't fit but always keeping the last one, which is help.
 func hintsText(hints []hint, width int) string {
@@ -925,10 +925,8 @@ func (a *App) globalKeys(event *tcell.EventKey) *tcell.EventKey {
 		a.pending = 'g'
 	case r == 'h':
 		a.pop()
-	case r == 'q':
-		if !a.pop() {
-			a.tv.Stop()
-		}
+	case r == 'Q':
+		a.tv.Stop()
 	case r == 'R':
 		a.top().Reload()
 		if a.tabs[a.current].name == "Notifications" {
@@ -950,13 +948,14 @@ func (a *App) globalKeys(event *tcell.EventKey) *tcell.EventKey {
 
 // goTo goes where g and the key after it say.
 func (a *App) goTo(r rune) {
-	tabs := map[rune]string{'f': "Following", 'l': "Latest", 'e': "Trending", 'n': "Notifications", 's': "Starred", 'p': "Profile"}
+	// l, e, p and s go where they do on the web; the rest are the tabs the web has no key for.
+	tabs := map[rune]string{'l': "Following", 'a': "Latest", 'e': "Trending", 'n': "Notifications", 'b': "Starred", 'p': "Profile"}
 	switch {
 	case r == 'g':
 		if l, ok := a.top().(interface{ Select(int) }); ok {
 			l.Select(0)
 		}
-	case r == 'S':
+	case r == 's':
 		a.push(newSettings(a))
 	case tabs[r] != "":
 		a.switchTab(a.tabIndex(tabs[r]))
@@ -977,7 +976,7 @@ func (a *App) help() {
 	})
 
 	_, _, width, height := a.root.GetRect()
-	a.openModal("help", centered(text, min(78, width), min(31, height)))
+	a.openModal("help", centered(text, min(78, width), min(32, height)))
 }
 
 func helpText() string {
@@ -994,14 +993,15 @@ func helpText() string {
 		row("j k ↓ ↑", "next / previous", "gg G", "first / last")+
 		row("^d ^u", "page down / up", "1-6 tab", "switch tab")+
 		row("⏎ l", "open the thread", "esc h ⌫", "back")+
-		row("g f/l/e", "following/latest/hot", "g n/s/p", "notifs/starred/me")+
-		row("g S", "settings", "/ ^k", "go to @user or link")+
-		row("q", "back, or quit", "^c", "quit")+
+		row("g l/a/e", "following/latest/hot", "g n/b/p", "notifs/starred/me")+
+		row("g s", "settings", "/ ^k", "go to @user or link")+
+		row("Q", "quit", "^c", "quit")+
 		"\n"+section("Commits")+
 		row("c", "new commit", "R", "refresh")+
-		row("r", "reply", "Q", "quote")+
+		row("r", "reply", "q", "quote")+
+		row("o", "show / hide replies", "w", "open in browser")+
 		row("s", "star / unstar", "P", "give a pastel")+
-		row("u", "author's profile", "o", "open in browser")+
+		row("u", "author's profile", "", "")+
 		row("y", "copy the link", "i", "view the images")+
 		row("D", "delete yours", "!", "report")+
 		"\n"+section("Profile")+
@@ -1010,7 +1010,7 @@ func helpText() string {
 		"\n"+section("Notifications")+
 		row("f", "filter by kind", "e", "everyone in a group")+
 		"\n"+section("Composer")+
-		row("^s", "commit", "esc", "cancel, keeping a draft")+
+		row("^s ^⏎", "commit", "esc", "cancel, keeping a draft")+
 		row("^o", "attach an image", "^r", "remove the last one")+
 		row("^e", "write in $EDITOR", "^p", "preview")+
 		row("tab", "complete @mention", "", ""), "\n")

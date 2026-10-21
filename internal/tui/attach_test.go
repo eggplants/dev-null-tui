@@ -203,7 +203,7 @@ func TestAQuoteCannotCarryImages(t *testing.T) {
 	h := start(t, &fakeAPI{})
 	h.waitFor("abc1234")
 
-	h.typeText("Q")
+	h.typeText("q")
 	h.waitFor("Quote")
 	h.key(tcell.KeyCtrlO)
 	h.waitFor("A quote can't carry images.")

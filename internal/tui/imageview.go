@@ -157,7 +157,7 @@ func (v *imageViewer) InputHandler() func(event *tcell.EventKey, setFocus func(p
 			v.show(v.index + 1)
 		case event.Key() == tcell.KeyLeft || event.Rune() == 'p':
 			v.show(v.index - 1)
-		case event.Rune() == 'o':
+		case event.Rune() == 'w':
 			v.app.openURL(v.images[v.index].URL, false)
 		}
 	})
@@ -166,7 +166,7 @@ func (v *imageViewer) InputHandler() func(event *tcell.EventKey, setFocus func(p
 func (v *imageViewer) Title() string { return fmt.Sprintf("Image %d/%d", v.index+1, len(v.images)) }
 
 func (v *imageViewer) Hints() []hint {
-	return []hint{{"n/p", "next / previous"}, {"o", "open in browser"}, {"esc", "back"}}
+	return []hint{{"n/p", "next / previous"}, {"w", "open in browser"}, {"esc", "back"}}
 }
 
 func (v *imageViewer) show(index int) {

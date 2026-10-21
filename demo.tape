@@ -57,7 +57,7 @@ Type "?"
 Sleep 2s
 Escape
 Sleep 500ms
-Type "q"
+Type "Q"
 Sleep 500ms
 
 Hide

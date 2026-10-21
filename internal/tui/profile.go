@@ -217,7 +217,7 @@ func (p *profileView) keys(event *tcell.EventKey) *tcell.EventKey {
 			return nil
 		}
 		p.app.confirm(fmt.Sprintf("Block @%s? They can't follow you or answer your commits, and you both unfollow each other.", p.username), func() {
-			p.relate(func(ctx context.Context) error { return p.app.client.Block(ctx, p.username, true) }, "Blocked @%s. Settings (g S) lists who you block.")
+			p.relate(func(ctx context.Context) error { return p.app.client.Block(ctx, p.username, true) }, "Blocked @%s. Settings (g s) lists who you block.")
 		})
 	default:
 		return event

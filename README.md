@@ -29,6 +29,9 @@ A terminal client for [dev-null.sh](https://dev-null.sh), the social network for
 ## Install
 
 ```sh
+# via the install script (checks the download against the release's checksums)
+curl -fsSL https://raw.githubusercontent.com/eggplants/dev-null-tui/master/install.sh | sh
+
 # via mise
 mise use -g github:eggplants/dev-null-tui
 
@@ -52,7 +55,8 @@ dn whoami
 dn          
 ```
 
-`login`, `whoami` and `commit` can be shortened to `l`, `w` and `c` (e.g. `dn c 'Hello world!'`).
+`login`, `whoami` and `commit` can be shortened to `l`, `w` and `c` (e.g. `dn c 'Hello world!'`). `dn config` shows the
+TUI's settings and where each one comes from.
 
 ### Committing from the shell
 
@@ -84,28 +88,62 @@ On Linux, `login` registers `dn` as the desktop's handler for `devnull://` links
 
 ### Keys
 
+The status bar shows the keys that work on what is selected, and `?` all of them.
+
 | Key | Action |
 | --- | --- |
 | `j` `k` `↓` `↑` | Next / previous (scrolls through long commits) |
-| `g` `G` | First / last |
+| `gg` `G` | First / last |
 | `^d` `^u` | Page down / up |
 | `1`–`6` `Tab` | Following, Latest, Trending, Notifications, Starred, Profile |
-| `⏎` `l` | Open the thread |
+| `g` then `f` `l` `e` `n` `s` `p` | Following, Latest, Trending, Notifications, Starred, Profile |
+| `g` `S` | Settings |
+| `/` `^k` | Go to an `@username`, a profile's or commit's link, or a hash on screen |
+| `⏎` `l` (or click it again) | Open the thread; on the open commit, reply |
 | `Esc` `h` `⌫` | Back |
 | `c` | New commit |
 | `r` / `Q` | Reply / quote |
 | `s` | Star |
-| `P` | Give a pastel |
+| `P` | Give a pastel (in pastéis mode) |
 | `u` | Open the author's profile |
+| `y` | Copy the link (over SSH too, with OSC 52) |
 | `o` | Open in the browser |
+| `i` | View the images |
 | `D` | Delete your commit |
-| `F` / `T` | Follow / switch between commits and replies (on a profile) |
+| `!` | Report a commit |
+| `F` / `M` / `B` | Follow / mute / block (on a profile) |
+| `T` | Next profile tab: commits, replies, followers, following |
+| `f` / `e` | Filter notifications by kind / list everyone in a group |
 | `R` | Refresh |
 | `?` | Help |
 | `q` | Back, or quit on a tab |
 
-In the composer, `^s` commits and `^o` attaches an image (`Tab` completes the path). `^r` drops the last image you
-attached.
+In the composer:
+
+| Key | Action |
+| --- | --- |
+| `^s` | Commit |
+| `Esc` | Close; a new commit's text is kept as a draft for the next `c` |
+| `^e` | Write it in `$VISUAL` or `$EDITOR` |
+| `^p` | Preview |
+| `Tab` | Complete the `@mention` being typed, from the people on screen |
+| `^o` | Attach an image (`Tab` completes the path); pasting or dropping an image file attaches it too |
+| `^v` | Attach the image on the clipboard |
+| `^r` | Drop the last image |
+
+### Settings
+
+`g S` in the TUI picks your color, turns pastéis mode on or off, takes your profile from GitHub again, and lists who
+you mute and block. The theme follows the terminal's background unless you pick one.
+
+`settings.json` next to the config takes these, and environment variables override it:
+
+| Setting | Environment | Default | |
+| --- | --- | --- | --- |
+| `theme` | `DN_THEME` | `auto` | `auto`, `dark` or `light` |
+| `graphics` | `DN_GRAPHICS` | `auto` | `auto`, `kitty`, `sixel` or `none` |
+| `poll_interval` | `DN_POLL_INTERVAL` | `30s` | How often new commits and notifications are checked for, 10s to 10m |
+| `mouse` | `DN_MOUSE` | `true` | |
 
 ## Limitations
 

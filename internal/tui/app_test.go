@@ -83,6 +83,13 @@ type harness struct {
 func start(t *testing.T, handler http.Handler, configure ...func(*App)) *harness {
 	t.Helper()
 
+	return startOn(t, handler, nil, configure...)
+}
+
+// startOn is start with the app drawing on what wrap makes of the simulation screen, as a graphicsScreen over it.
+func startOn(t *testing.T, handler http.Handler, wrap func(tcell.SimulationScreen) tcell.Screen, configure ...func(*App)) *harness {
+	t.Helper()
+
 	srv := httptest.NewServer(handler)
 	t.Cleanup(srv.Close)
 
@@ -98,7 +105,11 @@ func start(t *testing.T, handler http.Handler, configure ...func(*App)) *harness
 	}
 	screen.SetSize(80, 30)
 
-	app := New(api.New(srv.URL, signer)).SetScreen(screen)
+	var drawn tcell.Screen = screen
+	if wrap != nil {
+		drawn = wrap(screen)
+	}
+	app := New(api.New(srv.URL, signer)).SetScreen(drawn)
 	for _, f := range configure {
 		f(app)
 	}

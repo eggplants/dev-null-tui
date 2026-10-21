@@ -16,6 +16,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 
 	"golang.org/x/crypto/ssh"
@@ -109,9 +110,12 @@ func Listen(ctx context.Context) (<-chan string, error) {
 	if err != nil {
 		return nil, err
 	}
-	if err := os.Chmod(path, 0o600); err != nil {
-		ln.Close()
-		return nil, err
+	// On Windows chmod only sets the read-only bit; the socket is the user's by the temporary directory's ACL.
+	if runtime.GOOS != "windows" {
+		if err := os.Chmod(path, 0o600); err != nil {
+			ln.Close()
+			return nil, err
+		}
 	}
 
 	urls := make(chan string)

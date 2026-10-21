@@ -7,8 +7,12 @@ import (
 	"encoding/json"
 	"fmt"
 	"hash/fnv"
+	"image"
+	"image/color"
+	"image/png"
 	"io"
 	"log"
+	"math"
 	"net"
 	"net/http"
 	"os"
@@ -76,7 +80,7 @@ func newServer() *server {
 			}}})
 	add(&commit{ID: "c4", Author: sam, Ago: 3 * time.Hour, Stars: 6, Quoted: "c1",
 		Body: "Finally, a reason to keep a terminal open on the second monitor."})
-	add(&commit{ID: "c5", Author: mika, Ago: 5 * time.Hour, Stars: 23, Images: 2, Pasteis: 4,
+	add(&commit{ID: "c5", Author: mika, Ago: 5 * time.Hour, Stars: 23, Images: 3, Pasteis: 4,
 		Body: "Pairing on the new onboarding flow today. Whiteboards everywhere."})
 	add(&commit{ID: "c6", Author: noor, Ago: 27 * time.Hour, Stars: 1280,
 		Body:     "Thanks @mika for the review on https://github.com/eggplants/dev-null-tui/pull/42, it's in!",
@@ -135,13 +139,50 @@ func (s *server) json(c *commit, withPreview bool) map[string]any {
 	return out
 }
 
+// base is the demo server's own address, which its images are served from.
+var base string
+
 func images(c *commit) []any {
 	out := []any{}
 	for i := range c.Images {
-		out = append(out, map[string]any{"id": fmt.Sprintf("%s-%d", c.ID, i), "url": "https://dev-null.sh/missing.webp", "width": 1600, "height": 900})
+		out = append(out, map[string]any{"id": fmt.Sprintf("%s-%d", c.ID, i), "url": fmt.Sprintf("%s/img/%s-%d.png", base, c.ID, i), "width": 1600, "height": 900})
 	}
 
 	return out
+}
+
+// picture draws a made-up photo: a sky fading into the ground, with a sun, in colors that differ by name.
+func picture(w http.ResponseWriter, name string) {
+	h := fnv.New32a()
+	h.Write([]byte(name))
+	hue := float64(h.Sum32()%360) / 360
+
+	img := image.NewRGBA(image.Rect(0, 0, 320, 180))
+	for y := range 180 {
+		for x := range 320 {
+			t := float64(y) / 180
+			r, g, b := hsv(hue+t*0.15, 0.55, 1-t*0.6)
+			if dx, dy := float64(x-220), float64(y-70); dx*dx+dy*dy < 900 {
+				r, g, b = 255, 210, 90
+			}
+			if y > 130 {
+				r, g, b = r/3, g/3, b/3
+			}
+			img.Set(x, y, color.RGBA{r, g, b, 255})
+		}
+	}
+	w.Header().Set("Content-Type", "image/png")
+	_ = png.Encode(w, img)
+}
+
+func hsv(h, s, v float64) (uint8, uint8, uint8) {
+	h -= math.Floor(h)
+	i := int(h * 6)
+	f := h*6 - float64(i)
+	p, q, t := v*(1-s), v*(1-f*s), v*(1-(1-f)*s)
+	rgb := [6][3]float64{{v, t, p}, {q, v, p}, {p, v, t}, {p, q, v}, {t, p, v}, {v, p, q}}[i%6]
+
+	return uint8(rgb[0] * 255), uint8(rgb[1] * 255), uint8(rgb[2] * 255)
 }
 
 // activity is a year of made-up commits, a few a week with busier spells.
@@ -197,6 +238,11 @@ func shortHash(id string) string {
 func topLevel(c *commit) bool { return c.ParentID == "" }
 
 func (s *server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	if name, ok := strings.CutPrefix(r.URL.Path, "/img/"); ok {
+		picture(w, name)
+		return
+	}
+
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -352,7 +398,8 @@ func main() {
 	if _, err := config.LoadOrCreateKey(keyPath); err != nil {
 		log.Fatal(err)
 	}
-	cfg := &config.Config{BaseURL: "http://" + ln.Addr().String(), KeyPath: keyPath, Username: "you"}
+	base = "http://" + ln.Addr().String()
+	cfg := &config.Config{BaseURL: base, KeyPath: keyPath, Username: "you"}
 	if err := cfg.Save(); err != nil {
 		log.Fatal(err)
 	}

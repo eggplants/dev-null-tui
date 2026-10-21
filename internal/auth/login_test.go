@@ -7,6 +7,7 @@ import (
 	"crypto/sha256"
 	"encoding/base64"
 	"net/url"
+	"os"
 	"strings"
 	"testing"
 	"time"
@@ -90,7 +91,13 @@ func TestCode(t *testing.T) {
 }
 
 func TestForwardReachesListen(t *testing.T) {
-	t.Setenv("XDG_RUNTIME_DIR", t.TempDir())
+	// A socket's path is short on macOS, about 104 bytes, which t.TempDir() under $TMPDIR is already near.
+	dir, err := os.MkdirTemp("/tmp", "dn")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { os.RemoveAll(dir) })
+	t.Setenv("XDG_RUNTIME_DIR", dir)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()

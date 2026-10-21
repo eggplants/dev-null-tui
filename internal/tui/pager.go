@@ -28,6 +28,8 @@ type pager[T any] struct {
 	afterReload func()
 	// keep says which item of a reload to select, so the selection stays on what the reader was on.
 	keep func(items []T) int
+	// top gives the items that go above the first page, as a profile's pinned commit does.
+	top func() []T
 }
 
 func newPager[T any](app *App, title string, empty []string, render func(T, bool, int) []string) *pager[T] {
@@ -95,6 +97,9 @@ func (p *pager[T]) fetch(reset bool) {
 		}
 
 		if reset {
+			if p.top != nil {
+				items = append(p.top(), items...)
+			}
 			selected := 0
 			if p.keep != nil && len(p.items) > 0 {
 				selected = p.keep(items)

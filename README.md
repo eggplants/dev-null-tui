@@ -149,6 +149,9 @@ It also switches the settings below, which take effect at once (`graphics` from 
 | `mouse` | `DN_MOUSE` | `true` | |
 | `inline_images` | `DN_INLINE_IMAGES` | `true` | Show commits' images in the lists, in pixels with kitty graphics or sixel and else in half blocks, and avatars, which are initials without pixels |
 
+In tmux, images reach a kitty, Ghostty or WezTerm outside it once tmux lets them through with
+`set -g allow-passthrough on`.
+
 ## Limitations
 
 The TUI can do whatever the [signed API](https://github.com/nunomaduro/dev-null.sh#signed-requests) can.

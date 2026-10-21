@@ -109,6 +109,10 @@ type graphicsScreen struct {
 	protocol graphicsProtocol
 	// cellWidth and cellHeight are the size of a cell in pixels, for when the terminal doesn't say on resize.
 	cellWidth, cellHeight int
+	// tmux, when dn runs in tmux, gets the images through it to the terminal.
+	tmux *tmuxPassthrough
+	// cell is the size of a cell in pixels as tmux says it, which is the terminal's own.
+	cell [2]int
 
 	placed, shown []placement
 	lastID        uint32
@@ -121,6 +125,9 @@ func newGraphicsScreen(screen tcell.Screen, protocol graphicsProtocol, cellWidth
 
 // cellSize returns the size of a cell in pixels, guessing one when the terminal doesn't say.
 func (s *graphicsScreen) cellSize() (int, int) {
+	if s.cell[0] > 0 && s.cell[1] > 0 {
+		return s.cell[0], s.cell[1]
+	}
 	if tty, ok := s.Tty(); ok {
 		if ws, err := tty.WindowSize(); err == nil {
 			if w, h := ws.CellDimensions(); w > 0 && h > 0 {
@@ -200,13 +207,24 @@ func (s *graphicsScreen) show(flush func()) {
 		flush()
 		return
 	}
+	if s.tmux != nil && (width != s.width || height != s.height) {
+		s.tmux.refresh()
+	}
 	s.width, s.height = width, height
+
+	// In tmux, the images go through to the terminal, placed by where the pane is in it.
+	top, left := 0, 0
+	write := func(out *bytes.Buffer, seq []byte) { out.Write(seq) }
+	if s.tmux != nil {
+		top, left = s.tmux.top, s.tmux.left
+		write = func(out *bytes.Buffer, seq []byte) { out.Write(s.tmux.wrap(seq)) }
+	}
 
 	var out bytes.Buffer
 	for _, p := range s.shown {
 		s.LockRegion(p.x, p.y, p.width, p.height, false)
 		if s.protocol == graphicsKitty {
-			fmt.Fprintf(&out, "\x1b_Ga=d,d=I,q=2,i=%d\x1b\\", p.graphic.id)
+			write(&out, fmt.Appendf(nil, "\x1b_Ga=d,d=I,q=2,i=%d\x1b\\", p.graphic.id))
 		}
 	}
 	// The cells under the images are drawn blank first, so nothing shows through transparent pixels.
@@ -215,9 +233,9 @@ func (s *graphicsScreen) show(flush func()) {
 	for _, p := range s.placed {
 		s.LockRegion(p.x, p.y, p.width, p.height, true)
 		// Save the cursor, move to the cell, draw, and restore the cursor where tcell left it.
-		fmt.Fprintf(&out, "\x1b7\x1b[%d;%dH", p.y+1, p.x+1)
-		out.Write(p.graphic.data)
-		out.WriteString("\x1b8")
+		seq := fmt.Appendf(nil, "\x1b7\x1b[%d;%dH", p.y+1+top, p.x+1+left)
+		seq = append(seq, p.graphic.data...)
+		write(&out, append(seq, "\x1b8"...))
 	}
 	s.shown = append(s.shown[:0], s.placed...)
 

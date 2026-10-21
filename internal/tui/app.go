@@ -198,12 +198,18 @@ func (a *App) Run(ctx context.Context) error {
 	var protocol graphicsProtocol
 	// areaWidth and areaHeight are the terminal's text area in pixels, if it said.
 	var areaWidth, areaHeight int
+	var tmux *tmuxPassthrough
 	if a.screen == nil {
 		// The terminal is asked about itself before tcell takes it over and would read the answers as keys.
 		answer := probeTerminal(a.opts)
 		a.autoTheme = pickTheme("auto", answer)
 		applyTheme(pickTheme(a.opts.Theme, answer))
 		protocol, areaWidth, areaHeight = detectGraphics(a.opts.Graphics, answer)
+
+		// tmux doesn't pass the terminal's answer to the kitty query on, but lets images through when it's allowed to.
+		if tmux = inTmux(); tmux != nil && protocol == graphicsNone && a.opts.Graphics == "auto" {
+			protocol = tmux.outerProtocol()
+		}
 	}
 	a.paint()
 
@@ -233,6 +239,11 @@ func (a *App) Run(ctx context.Context) error {
 		}
 		a.protocol = protocol
 		gs := newGraphicsScreen(screen, protocol, areaWidth, areaHeight)
+		// Sixel in tmux is tmux's own, which needs no passthrough.
+		if tmux != nil && protocol == graphicsKitty {
+			gs.tmux = tmux
+			gs.cell[0], gs.cell[1] = tmux.cellSize()
+		}
 		a.SetScreen(gs)
 		// tview only turns the mouse and pasting on for a screen it makes itself.
 		a.tv.EnableMouse(a.opts.Mouse).EnablePaste(true)

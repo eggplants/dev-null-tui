@@ -33,6 +33,11 @@ func newPeopleList(app *App, title string, empty []string, load func(ctx context
 	l := &peopleList{pager: newPager(app, title, empty, personLines)}
 	l.load = load
 	l.end = ""
+	l.overlay = func(screen tcell.Screen, u *api.User, top, x, y, width, height int) {
+		if top >= y && top < y+height {
+			app.drawAvatar(screen, u, x+1, top, avatarCols, 1, y, height)
+		}
+	}
 	l.onActivate = func() {
 		if u, ok := l.Selected(); ok {
 			app.push(newProfile(app, u.Username))

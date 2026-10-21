@@ -33,12 +33,12 @@ type commitFeed struct {
 	checking bool
 	// expanded are the replies shown under the commits o opened, by the commit's id.
 	expanded map[string][]api.Commit
-	// strips are where each commit's images go in its lines, and how many rows they take.
-	strips map[*api.Commit][2]int
+	// layouts are where each commit's images and avatars go in its lines.
+	layouts map[*api.Commit]layout
 }
 
 func newCommitFeed(app *App, title string, empty []string, load func(ctx context.Context, cursor string) ([]*api.Commit, string, error)) *commitFeed {
-	f := &commitFeed{expanded: map[string][]api.Commit{}, strips: map[*api.Commit][2]int{}}
+	f := &commitFeed{expanded: map[string][]api.Commit{}, layouts: map[*api.Commit]layout{}}
 	f.pager = newPager(app, title, empty, func(c *api.Commit, selected bool, width int) []string {
 		shown := c
 		if replies, ok := f.expanded[c.ID]; ok {
@@ -47,12 +47,21 @@ func newCommitFeed(app *App, title string, empty []string, load func(ctx context
 			shown = &copied
 		}
 		l := commitLayout(shown, selected, c.ID == f.focusID, width)
-		f.strips[c] = [2]int{l.strip, l.rows}
+		f.layouts[c] = layout{strip: l.strip, rows: l.rows, avatars: l.avatars}
 		return l.lines
 	})
 	f.overlay = func(screen tcell.Screen, c *api.Commit, top, x, y, width, height int) {
-		if s, ok := f.strips[c]; ok && s[0] >= 0 && c.DeletedAt == nil {
-			app.drawImages(screen, c.Images, x+gutterWidth, top+s[0], width-gutterWidth, s[1], y, height)
+		l, ok := f.layouts[c]
+		if !ok {
+			return
+		}
+		for _, spot := range l.avatars {
+			if row := top + spot.line; row >= y && row < y+height {
+				app.drawAvatar(screen, spot.user, x+spot.col, row, avatarCols, 1, y, height)
+			}
+		}
+		if l.strip >= 0 && c.DeletedAt == nil {
+			app.drawImages(screen, c.Images, x+gutterWidth, top+l.strip, width-gutterWidth, l.rows, y, height)
 		}
 	}
 	f.load = load

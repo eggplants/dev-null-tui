@@ -371,8 +371,8 @@ func (a *App) drawAside(screen tcell.Screen, x, y, width, height int) {
 	}
 	lines := []string{
 		"",
-		fmt.Sprintf("%s [%s::b]%s[-::-]", avatarChip(&a.me.User), colorInk, tview.Escape(name)),
-		fmt.Sprintf("     [%s]●[-] [%s]@%s[-]", laneColor(&a.me.User), colorMuted, tview.Escape(a.me.Username)),
+		fmt.Sprintf("      [%s::b]%s[-::-]", colorInk, tview.Escape(name)),
+		fmt.Sprintf("      [%s]@%s[-]", colorMuted, tview.Escape(a.me.Username)),
 	}
 	if showPasteis {
 		lines = append(lines, fmt.Sprintf("     [%s]◍[-] [%s]%d pastéis left today[-]", theme.lanes[5], colorMuted, a.me.PasteisRemaining))
@@ -392,6 +392,7 @@ func (a *App) drawAside(screen tcell.Screen, x, y, width, height int) {
 		}
 		tview.Print(screen, l, x, y+i, width, tview.AlignLeft, tcell.GetColor(colorInk))
 	}
+	a.drawAvatar(screen, &a.me.User, x, y+1, 4, 2, y, height)
 }
 
 // drawHeaderBox draws the logo, the tabs with their unread and new counts, and the user's name.

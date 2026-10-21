@@ -13,7 +13,7 @@ import (
 )
 
 // maxThumbs is how many images the cache keeps before it starts over, so a long scroll doesn't hold every one.
-const maxThumbs = 200
+const maxThumbs = 300
 
 // thumbWidth is the widest a cached image is kept, plenty for a third of a terminal.
 const thumbWidth = 640
@@ -26,6 +26,8 @@ type thumb struct {
 
 	blocks   map[[2]int][][][2]tcell.Color
 	graphics map[[2]int]*graphic
+	// avatars are the image drawn round in a ring, by its size, ring and background.
+	avatars map[string]*graphic
 }
 
 // thumbs fetches the images lists show, a few at a time, and keeps them. It's only used on the UI goroutine.
@@ -48,7 +50,7 @@ func (t *thumbs) get(url string) *thumb {
 		t.entries = map[string]*thumb{}
 	}
 
-	th := &thumb{loading: true, blocks: map[[2]int][][][2]tcell.Color{}, graphics: map[[2]int]*graphic{}}
+	th := &thumb{loading: true, blocks: map[[2]int][][][2]tcell.Color{}, graphics: map[[2]int]*graphic{}, avatars: map[string]*graphic{}}
 	t.entries[url] = th
 	go func() {
 		t.slots <- struct{}{}

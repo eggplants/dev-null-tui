@@ -284,12 +284,26 @@ func commitLines(c *api.Commit, selected, full bool, width int) []string {
 	return commitLayout(c, selected, full, width).lines
 }
 
-// layout is a commit's lines, with where the rows its images are drawn over start, or -1 when it has none.
+// layout is a commit's lines, with where the rows its images are drawn over start, or -1 when it has none, and
+// where its author's avatar and its replies' authors' go.
 type layout struct {
-	lines []string
-	strip int
-	rows  int
+	lines   []string
+	strip   int
+	rows    int
+	avatars []avatarSpot
 }
+
+// avatarSpot is where an avatar goes in an item's lines: a line, the column it starts at and whose it is. An avatar
+// in a line takes avatarCols columns, and a space after them.
+type avatarSpot struct {
+	line, col int
+	user      *api.User
+}
+
+const avatarCols = 2
+
+// avatarRoom is the space an avatar is drawn over, in front of a name.
+var avatarRoom = strings.Repeat(" ", avatarCols+1)
 
 // stripRows is how many rows a commit's images take.
 func stripRows(full bool) int {
@@ -317,7 +331,13 @@ func commitLayout(c *api.Commit, selected, full bool, width int) layout {
 	if c.Status == "pending" || c.Status == "rejected" {
 		node = "◌"
 	}
-	lines := wrapIndent(spread(authorLine(c), hash(c), inner), gutter(selected, node, color), rail, width)
+	var spots []avatarSpot
+	head := authorLine(c)
+	if c.Author != nil {
+		head = avatarRoom + head
+		spots = append(spots, avatarSpot{line: 0, col: gutterWidth, user: c.Author})
+	}
+	lines := wrapIndent(spread(head, hash(c), inner), gutter(selected, node, color), rail, width)
 
 	segments := c.BodySegments
 	excerpt := !full && c.PreviewSegments != nil
@@ -353,7 +373,11 @@ func commitLayout(c *api.Commit, selected, full bool, width int) layout {
 
 	if c.ReplyPreview != nil {
 		for i := range c.ReplyPreview.Data {
-			lines = append(lines, replyPreviewLines(&c.ReplyPreview.Data[i], selected, color, width)...)
+			r := &c.ReplyPreview.Data[i]
+			if r.Author != nil && r.DeletedAt == nil {
+				spots = append(spots, avatarSpot{line: len(lines), col: replyAvatarCol, user: r.Author})
+			}
+			lines = append(lines, replyPreviewLines(r, selected, color, width)...)
 		}
 		if more := c.RepliesCount - len(c.ReplyPreview.Data); more > 0 && len(c.ReplyPreview.Data) > 0 {
 			label := fmt.Sprintf("%s more replies", count(more))
@@ -364,7 +388,7 @@ func commitLayout(c *api.Commit, selected, full bool, width int) layout {
 		}
 	}
 
-	return layout{lines: append(lines, separator(color)), strip: strip, rows: rows}
+	return layout{lines: append(lines, separator(color)), strip: strip, rows: rows, avatars: spots}
 }
 
 // attachmentLines renders what a commit carries besides its body: a poll, images, a link card and a quote.
@@ -489,19 +513,22 @@ func countsLine(c *api.Commit) string {
 	return line
 }
 
-// replyPreviewLines draws a reply under its commit, branching off the commit's rail.
+// replyAvatarCol is where a reply's avatar goes, at the end of the branch off its commit's rail.
+const replyAvatarCol = 3
+
+// replyPreviewLines draws a reply under its commit, branching off the commit's rail to its author's avatar.
 func replyPreviewLines(r *api.Commit, selected bool, color string, width int) []string {
 	bar := " "
 	if selected {
 		bar = fmt.Sprintf("[%s]▌[-]", colorPrimary)
 	}
-	branch := fmt.Sprintf("%s[%s]├─[%s]●[-] ", bar, color, laneColor(r.Author))
 	rest := fmt.Sprintf("%s[%s]│[-]   ", bar, color)
 	inner := max(width-5, 1)
 
 	if r.DeletedAt != nil {
-		return []string{branch + fmt.Sprintf("[%s::i]This reply was deleted.[-::-]", colorFaint)}
+		return []string{fmt.Sprintf("%s[%s]├─[%s]○[-] [%s::i]This reply was deleted.[-::-]", bar, color, colorRail, colorFaint)}
 	}
+	branch := fmt.Sprintf("%s[%s]├─[-]%s", bar, color, avatarRoom)
 
 	head := authorName(r.Author) + fmt.Sprintf(" [%s]· %s[-]", colorMuted, relativeTime(r.CreatedAt))
 	lines := wrapIndent(head, branch, rest, width)
@@ -546,6 +573,19 @@ func notificationIcon(typ string) string {
 	return fmt.Sprintf("[%s]•[-]", colorMuted)
 }
 
+// hasActorAvatar tells whether a notification shows who did it, with their avatar after its icon.
+func hasActorAvatar(n *api.Notification) bool {
+	switch n.Type {
+	case "approved", "rejected", "leveled_up":
+		return false
+	}
+
+	return n.Actor != nil
+}
+
+// notificationAvatarCol is where the avatar of a notification's actor goes.
+const notificationAvatarCol = 3
+
 func notificationLines(n *api.Notification, selected bool, width int) []string {
 	bar := " "
 	if selected {
@@ -553,6 +593,10 @@ func notificationLines(n *api.Notification, selected bool, width int) []string {
 	}
 	first := bar + notificationIcon(n.Type) + " "
 	rest := bar + "  "
+	if hasActorAvatar(n) {
+		first += avatarRoom
+		rest += avatarRoom
+	}
 
 	verb := notificationVerbs[n.Type]
 	if verb == "" {

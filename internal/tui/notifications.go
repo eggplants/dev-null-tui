@@ -23,6 +23,7 @@ type notifications struct {
 func newNotifications(app *App) *notifications {
 	n := &notifications{typ: "all"}
 	n.pager = newPager(app, "Notifications", nil, notificationLines)
+	n.overlay = n.drawActor
 	n.end = ""
 	n.setEmpty()
 	n.load = func(ctx context.Context, cursor string) ([]*api.Notification, string, error) {
@@ -50,6 +51,7 @@ func newNotifications(app *App) *notifications {
 func newNotificationGroup(app *App, group *api.Notification, typ string) *notifications {
 	n := &notifications{typ: typ, group: group}
 	n.pager = newPager(app, "Group", emptyState("nothing in this group"), notificationLines)
+	n.overlay = n.drawActor
 	n.end = ""
 	n.load = func(ctx context.Context, cursor string) ([]*api.Notification, string, error) {
 		page, err := app.client.NotificationGroup(ctx, group.ID, cursor, typ)
@@ -66,6 +68,13 @@ func newNotificationGroup(app *App, group *api.Notification, typ string) *notifi
 	}
 
 	return n
+}
+
+// drawActor draws who did a notification, after its icon.
+func (n *notifications) drawActor(screen tcell.Screen, item *api.Notification, top, x, y, width, height int) {
+	if hasActorAvatar(item) && top >= y && top < y+height {
+		n.app.drawAvatar(screen, item.Actor, x+notificationAvatarCol, top, avatarCols, 1, y, height)
+	}
 }
 
 func (n *notifications) setEmpty() {

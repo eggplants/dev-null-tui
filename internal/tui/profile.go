@@ -47,6 +47,7 @@ func newProfile(app *App, username string) *profileView {
 		})
 		f.byDay = true
 		f.header = p.header
+		f.headerOverlay = p.drawAvatar
 		f.keys = p.keys
 		f.hints = p.hints
 		return f
@@ -61,6 +62,7 @@ func newProfile(app *App, username string) *profileView {
 			return pointers(page.Data), page.NextCursor, nil
 		})
 		l.header = p.header
+		l.headerOverlay = p.drawAvatar
 		l.keys = p.keys
 		l.extraHints = p.hints
 		return l
@@ -150,6 +152,13 @@ func (p *profileView) header(width int) []string {
 	}
 
 	return append(lines, "", profileTabs(profileTabNames, p.current, width), fmt.Sprintf("[%s]%s[-]", theme.hairline, strings.Repeat("─", max(width, 0))))
+}
+
+// drawAvatar draws the profile's avatar in its head, whose first line is at top.
+func (p *profileView) drawAvatar(screen tcell.Screen, top, x, y, width, height int) {
+	if p.profile != nil {
+		p.app.drawAvatar(screen, &p.profile.Data, x+profileAvatarCol, top+profileAvatarLine, profileAvatarCols, profileAvatarRows, y, height)
+	}
 }
 
 func (p *profileView) isMe() bool {

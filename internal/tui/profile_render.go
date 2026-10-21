@@ -34,10 +34,9 @@ func initials(u *api.User) string {
 	return string(out)
 }
 
-// avatarChip is a user's initials on their lane color, where the web shows their picture.
-func avatarChip(u *api.User) string {
-	return fmt.Sprintf("[%s:%s:b] %-2s [-:-:-]", theme.popover, laneColor(u), tview.Escape(initials(u)))
-}
+// profileAvatar is where a profile's avatar goes in its head: under the blank first line, at the left, four columns
+// by two rows.
+const profileAvatarCol, profileAvatarLine, profileAvatarCols, profileAvatarRows = 1, 1, 4, 2
 
 // pill is a small label next to a profile's name.
 func pill(text, color string) string {
@@ -55,7 +54,7 @@ func profileLines(p *api.Profile, me string, pasteisLeft, width int) []string {
 	if name == "" {
 		name = u.Username
 	}
-	head := fmt.Sprintf(" %s  [%s::b]%s[-::-] [%s]@%s[-]", avatarChip(u), colorInk, tview.Escape(name), colorMuted, tview.Escape(u.Username))
+	head := fmt.Sprintf("%s  [%s::b]%s[-::-] [%s]@%s[-]", strings.Repeat(" ", profileAvatarCol+profileAvatarCols-1), colorInk, tview.Escape(name), colorMuted, tview.Escape(u.Username))
 
 	var pills []string
 	switch {
@@ -315,10 +314,10 @@ func personLines(u *api.User, selected bool, width int) []string {
 		pills = append(pills, pill("✓ following", colorPrimary))
 	}
 
-	head := fmt.Sprintf("%s%s %s", bar, avatarChip(u), authorName(u))
+	head := bar + avatarRoom + authorName(u)
 	lines := []string{spread(head, strings.Join(pills, " "), width)}
 	if u.Bio != "" {
-		lines = append(lines, truncateLines(wrap(fmt.Sprintf("[%s]%s[-]", colorMuted, tview.Escape(u.Bio)), bar+"      ", width), 2)...)
+		lines = append(lines, truncateLines(wrap(fmt.Sprintf("[%s]%s[-]", colorMuted, tview.Escape(u.Bio)), bar+avatarRoom, width), 2)...)
 	}
 
 	return append(lines, "")

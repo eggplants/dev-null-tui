@@ -202,7 +202,7 @@ func TestReadsTheLogAndActsOnACommit(t *testing.T) {
 	h.waitFor("Alice @alice · 1h")
 	h.waitFor("abc1234")
 	h.waitFor("Notifications 2")
-	h.waitFor("├─● Me @me")
+	h.waitFor("├─M  Me @me")
 
 	h.key(tcell.KeyEnter)
 	h.waitFor("Thread abc1234")
@@ -213,7 +213,7 @@ func TestReadsTheLogAndActsOnACommit(t *testing.T) {
 
 	h.key(tcell.KeyEscape)
 	h.waitForGone("Thread abc1234")
-	h.waitFor("├─● Me @me")
+	h.waitFor("├─M  Me @me")
 
 	h.typeText("c")
 	h.waitFor("New commit")

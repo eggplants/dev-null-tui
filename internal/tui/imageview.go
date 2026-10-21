@@ -9,13 +9,13 @@ import (
 	_ "image/png"
 	"io"
 	"net/http"
+	"time"
 
 	"github.com/gdamore/tcell/v2"
 	"github.com/rivo/tview"
 	_ "golang.org/x/image/webp"
 
 	"github.com/eggplants/dev-null-tui/internal/api"
-	"github.com/eggplants/dev-null-tui/internal/browser"
 )
 
 // imageViewer shows a commit's images one at a time, in pixels when the terminal can draw them and in block
@@ -59,7 +59,7 @@ func (v *imageViewer) Reload() {
 
 	var img image.Image
 	v.app.async(func(ctx context.Context) (err error) {
-		img, err = fetchImage(ctx, v.app.client.HTTPClient, v.images[index].URL)
+		img, err = fetchImage(ctx, imageClient, v.images[index].URL)
 		return err
 	}, func(err error) {
 		if err != nil {
@@ -69,6 +69,9 @@ func (v *imageViewer) Reload() {
 		v.decoded[index] = img
 	})
 }
+
+// imageClient fetches images, which unlike the API may be redirected, as to a CDN.
+var imageClient = &http.Client{Timeout: 30 * time.Second}
 
 // fetchImage downloads and decodes an image; commit images are WebP, but any format Go reads will do.
 func fetchImage(ctx context.Context, client *http.Client, url string) (image.Image, error) {
@@ -101,18 +104,17 @@ func (v *imageViewer) Draw(screen tcell.Screen) {
 	}
 
 	img := v.images[v.index]
-	title := fmt.Sprintf("[::b]Image %d/%d[::-] [%s]%d×%d · n/p switch · o open in browser · esc back[-]",
-		v.index+1, len(v.images), colorMuted, img.Width, img.Height)
-	tview.Print(screen, title, x, y, width, tview.AlignLeft, tcell.ColorDefault)
+	title := fmt.Sprintf(" [%s::b]Image %d/%d[-::-] [%s]%d×%d[-]", colorInk, v.index+1, len(v.images), colorMuted, img.Width, img.Height)
+	tview.Print(screen, title, x, y, width, tview.AlignLeft, tcell.GetColor(colorInk))
 	y, height = y+2, height-2
 
 	decoded := v.decoded[v.index]
 	switch {
 	case v.failed[v.index] != nil:
-		tview.Print(screen, fmt.Sprintf("[red]%s[-]", tview.Escape(v.failed[v.index].Error())), x, y, width, tview.AlignLeft, tcell.ColorDefault)
+		tview.Print(screen, fmt.Sprintf(" [%s]%s[-]", colorDanger, tview.Escape(v.failed[v.index].Error())), x, y, width, tview.AlignLeft, tcell.ColorDefault)
 		return
 	case decoded == nil:
-		tview.Print(screen, fmt.Sprintf("[%s]Loading…[-]", colorMuted), x, y, width, tview.AlignLeft, tcell.ColorDefault)
+		tview.Print(screen, fmt.Sprintf(" [%s]%s Reading from /dev/null…[-]", colorMuted, spinnerFrame()), x, y, width, tview.AlignLeft, tcell.ColorDefault)
 		return
 	}
 
@@ -156,11 +158,15 @@ func (v *imageViewer) InputHandler() func(event *tcell.EventKey, setFocus func(p
 		case event.Key() == tcell.KeyLeft || event.Rune() == 'p':
 			v.show(v.index - 1)
 		case event.Rune() == 'o':
-			if err := browser.Open(v.images[v.index].URL); err != nil {
-				v.app.flashError(err)
-			}
+			v.app.openURL(v.images[v.index].URL, false)
 		}
 	})
+}
+
+func (v *imageViewer) Title() string { return fmt.Sprintf("Image %d/%d", v.index+1, len(v.images)) }
+
+func (v *imageViewer) Hints() []hint {
+	return []hint{{"n/p", "next / previous"}, {"o", "open in browser"}, {"esc", "back"}}
 }
 
 func (v *imageViewer) show(index int) {

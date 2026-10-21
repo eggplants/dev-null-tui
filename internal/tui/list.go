@@ -10,18 +10,24 @@ import (
 type listView[T any] struct {
 	*tview.Box
 
-	items    []T
-	render   func(item T, selected bool, width int) []string
-	header   func(width int) []string
+	items  []T
+	render func(item T, selected bool, width int) []string
+	header func(width int) []string
+	// divider, if set, gives the lines that go above an item, after the one before it (nil for the first).
+	divider  func(prev, item T, width int) []string
 	footer   []string
 	selected int
 	offset   int
 
 	// onLast runs when the selection moves onto the last item, so the owner can load the next page.
 	onLast func()
+	// onActivate runs when the selected item is clicked again, as Enter would open it.
+	onActivate func()
 
-	lines  []string
+	lines []string
+	// starts is the first line of each item, its divider included, and heads the first line of the item itself.
 	starts []int
+	heads  []int
 	width  int
 	dirty  bool
 }
@@ -48,6 +54,16 @@ func (l *listView[T]) SetFooter(lines ...string) {
 
 func (l *listView[T]) Invalidate() {
 	l.dirty = true
+}
+
+// Position is where the selection is, for the status bar.
+func (l *listView[T]) Position() (int, int) {
+	return l.selected, len(l.items)
+}
+
+// Items are the items in the list, in order.
+func (l *listView[T]) Items() []T {
+	return l.items
 }
 
 // Selected returns the selected item, or false when the list is empty.
@@ -89,10 +105,16 @@ func (l *listView[T]) layout(width int) {
 		l.lines = append(l.lines, l.header(width)...)
 	}
 
-	l.starts = l.starts[:0]
+	l.starts, l.heads = l.starts[:0], l.heads[:0]
+	var prev T
 	for i, item := range l.items {
 		l.starts = append(l.starts, len(l.lines))
+		if l.divider != nil {
+			l.lines = append(l.lines, l.divider(prev, item, width)...)
+		}
+		l.heads = append(l.heads, len(l.lines))
 		l.lines = append(l.lines, l.render(item, i == l.selected, width)...)
+		prev = item
 	}
 	l.starts = append(l.starts, len(l.lines))
 	l.lines = append(l.lines, l.footer...)
@@ -127,17 +149,47 @@ func (l *listView[T]) scrollToSelection(height int) {
 func (l *listView[T]) Draw(screen tcell.Screen) {
 	l.Box.DrawForSubclass(screen, l)
 	x, y, width, height := l.GetInnerRect()
-	if width <= 0 || height <= 0 {
+	if width <= 1 || height <= 0 {
 		return
 	}
 
-	if l.dirty || width != l.width {
-		l.layout(width)
+	// The last column is kept for the scrollbar.
+	if l.dirty || width-1 != l.width {
+		l.layout(width - 1)
 		l.scrollToSelection(height)
 	}
 
+	// The selected item sits on the wash, all but its last line, which separates it from the next.
+	washStart, washEnd := -1, -1
+	if len(l.items) > 0 && l.selected < len(l.starts)-1 {
+		washStart, washEnd = l.heads[l.selected], l.starts[l.selected+1]-1
+	}
+	wash := tcell.StyleDefault.Background(tcell.GetColor(colorWash))
+	ink := tcell.GetColor(colorInk)
+
 	for row := 0; row < height && l.offset+row < len(l.lines); row++ {
-		tview.Print(screen, l.lines[l.offset+row], x, y+row, width, tview.AlignLeft, tcell.ColorDefault)
+		line := l.offset + row
+		if line >= washStart && line < washEnd {
+			for col := range width - 1 {
+				screen.SetContent(x+col, y+row, ' ', nil, wash)
+			}
+		}
+		tview.Print(screen, l.lines[line], x, y+row, width-1, tview.AlignLeft, ink)
+	}
+
+	// A list longer than the screen has a scrollbar on its right edge.
+	if total := len(l.lines); total > height && height > 0 {
+		thumb := max(1, height*height/total)
+		top := l.offset * (height - thumb) / max(1, total-height)
+		for row := range height {
+			style := tcell.StyleDefault.Foreground(tcell.GetColor(colorRail)).Background(tcell.GetColor(theme.shell))
+			r := '│'
+			if row >= top && row < top+thumb {
+				r = '┃'
+				style = style.Foreground(tcell.GetColor(colorFaint))
+			}
+			screen.SetContent(x+width-1, y+row, r, nil, style)
+		}
 	}
 }
 
@@ -187,7 +239,12 @@ func (l *listView[T]) MouseHandler() func(action tview.MouseAction, event *tcell
 		case tview.MouseLeftClick:
 			_, y, _, _ := l.GetInnerRect()
 			_, mouseY := event.Position()
-			l.Select(l.indexAt(l.offset + mouseY - y))
+			index := l.indexAt(l.offset + mouseY - y)
+			if index == l.selected && len(l.items) > 0 && l.onActivate != nil {
+				l.onActivate()
+			} else {
+				l.Select(index)
+			}
 			setFocus(l)
 		default:
 			return false, nil

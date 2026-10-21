@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"image"
 	"image/png"
-	"os"
 	"strings"
 
 	"github.com/gdamore/tcell/v2"
@@ -27,36 +26,46 @@ func (p graphicsProtocol) String() string {
 	return [...]string{"none", "kitty", "sixel"}[p]
 }
 
-// detectGraphics asks the terminal which graphics protocol it speaks, before tcell takes it over. DN_GRAPHICS set to
-// kitty, sixel or none skips asking. It also returns the size of a cell in pixels, if the terminal said.
-func detectGraphics() (graphicsProtocol, int, int) {
-	switch os.Getenv("DN_GRAPHICS") {
-	case "kitty":
-		return graphicsKitty, 0, 0
-	case "sixel":
-		return graphicsSixel, 0, 0
-	case "none":
-		return graphicsNone, 0, 0
+// probeQuery asks the terminal whether it speaks kitty graphics, how big its text area is in pixels and what color
+// its background is, and then for its primary device attributes, which every terminal answers: once that answer is
+// in, so are the others the terminal knows.
+const probeQuery = "\x1b_Gi=31,s=1,v=1,a=q,t=d,f=24;AAAA\x1b\\" + "\x1b[14t" + "\x1b]11;?\x1b\\" + "\x1b[c"
+
+// probeTerminal sends probeQuery before tcell takes the terminal over, unless the options already say what it would
+// tell.
+func probeTerminal(opts Options) []byte {
+	if opts.Graphics != "auto" && opts.Theme != "auto" {
+		return nil
 	}
 
-	// A kitty graphics query, the text area's size in pixels, and then the primary device attributes, which every
-	// terminal answers: once that answer is in, so are the others the terminal knows.
-	answer := queryTerminal("\x1b_Gi=31,s=1,v=1,a=q,t=d,f=24;AAAA\x1b\\" + "\x1b[14t" + "\x1b[c")
+	return queryTerminal(probeQuery)
+}
 
-	protocol := graphicsNone
-	switch {
-	case bytes.Contains(answer, []byte("\x1b_Gi=31;OK")):
-		protocol = graphicsKitty
-	case hasSixel(answer):
-		protocol = graphicsSixel
-	}
-
+// detectGraphics reads which graphics protocol the terminal speaks from its answer to probeQuery, unless name, set to
+// kitty, sixel or none, says. It also returns the size of the text area in pixels, if the terminal said.
+func detectGraphics(name string, answer []byte) (graphicsProtocol, int, int) {
 	var height, width int
 	if i := bytes.Index(answer, []byte("\x1b[4;")); i >= 0 {
 		fmt.Sscanf(string(answer[i:]), "\x1b[4;%d;%dt", &height, &width)
 	}
 
-	return protocol, width, height
+	switch name {
+	case "kitty":
+		return graphicsKitty, width, height
+	case "sixel":
+		return graphicsSixel, width, height
+	case "none":
+		return graphicsNone, width, height
+	}
+
+	switch {
+	case bytes.Contains(answer, []byte("\x1b_Gi=31;OK")):
+		return graphicsKitty, width, height
+	case hasSixel(answer):
+		return graphicsSixel, width, height
+	}
+
+	return graphicsNone, width, height
 }
 
 // hasSixel tells whether the primary device attributes, ESC [ ? 62 ; 4 ; ... c, list 4: sixel graphics.

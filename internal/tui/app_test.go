@@ -188,9 +188,10 @@ func TestReadsTheLogAndActsOnACommit(t *testing.T) {
 	fake := &fakeAPI{}
 	h := start(t, fake)
 
-	h.waitFor("Alice @alice · 1h · abc1234")
-	h.waitFor("Notifications (2)")
-	h.waitFor("↳ Me @me")
+	h.waitFor("Alice @alice · 1h")
+	h.waitFor("abc1234")
+	h.waitFor("Notifications 2")
+	h.waitFor("├─● Me @me")
 
 	h.key(tcell.KeyEnter)
 	h.waitFor("Thread abc1234")
@@ -201,7 +202,7 @@ func TestReadsTheLogAndActsOnACommit(t *testing.T) {
 
 	h.key(tcell.KeyEscape)
 	h.waitForGone("Thread abc1234")
-	h.waitFor("↳ Me @me")
+	h.waitFor("├─● Me @me")
 
 	h.typeText("c")
 	h.waitFor("New commit")
@@ -212,7 +213,7 @@ func TestReadsTheLogAndActsOnACommit(t *testing.T) {
 	h.typeText("hello from the terminal")
 	h.waitFor("23/4000")
 	h.key(tcell.KeyCtrlS)
-	h.waitFor("Committed 9999999. It's pending review")
+	h.waitFor("[log 9999999] hello from the terminal · pending review")
 
 	fake.mu.Lock()
 	defer fake.mu.Unlock()
@@ -281,7 +282,7 @@ func (g *growingLog) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 func TestTakesInNewCommitsAtTheTop(t *testing.T) {
 	log := &growingLog{bodies: []string{"first-commit"}}
-	h := start(t, log, func(a *App) { a.logPollInterval = 50 * time.Millisecond })
+	h := start(t, log, func(a *App) { a.opts.PollInterval = 50 * time.Millisecond })
 	h.waitFor("first-commit")
 
 	log.add("second-commit")
@@ -293,14 +294,14 @@ func TestTakesInNewCommitsAtTheTop(t *testing.T) {
 
 func TestCountsNewCommitsWhenScrolledDown(t *testing.T) {
 	log := &growingLog{bodies: []string{"newer-commit", "older-commit"}}
-	h := start(t, log, func(a *App) { a.logPollInterval = 50 * time.Millisecond })
+	h := start(t, log, func(a *App) { a.opts.PollInterval = 50 * time.Millisecond })
 	h.waitFor("older-commit")
 
 	h.typeText("j")
-	h.waitUntil(func(s string) bool { return strings.Contains(s, "┃ older-commit") }, "select the older commit")
+	h.waitUntil(func(s string) bool { return strings.Contains(s, "▌│ older-commit") }, "select the older commit")
 	log.add("brand-new-1")
 	log.add("brand-new-2")
-	h.waitFor("Following ↑2")
+	h.waitFor("↑2")
 	if s := h.text(); strings.Contains(s, "brand-new") {
 		t.Errorf("the feed moved under the reader:\n%s", s)
 	}

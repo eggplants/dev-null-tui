@@ -13,8 +13,11 @@ type pager[T any] struct {
 
 	app   *App
 	title string
-	empty string
-	load  func(ctx context.Context, cursor string) (items []T, next string, err error)
+	// empty is what the list says when it has nothing in it, as lines to show: a fatal: line and what to do.
+	empty []string
+	// end is the line under the last item once there are no more.
+	end  string
+	load func(ctx context.Context, cursor string) (items []T, next string, err error)
 
 	cursor  string
 	loaded  bool
@@ -23,16 +26,35 @@ type pager[T any] struct {
 	generation int
 	// afterReload runs on the UI goroutine once the first page is in.
 	afterReload func()
+	// keep says which item of a reload to select, so the selection stays on what the reader was on.
+	keep func(items []T) int
 }
 
-func newPager[T any](app *App, title, empty string, render func(T, bool, int) []string) *pager[T] {
-	p := &pager[T]{listView: newListView(render), app: app, title: title, empty: empty}
+func newPager[T any](app *App, title string, empty []string, render func(T, bool, int) []string) *pager[T] {
+	p := &pager[T]{listView: newListView(render), app: app, title: title, empty: empty, end: endOfList()}
 	p.onLast = p.loadMore
 
 	return p
 }
 
-func (p *pager[T]) Loaded() bool { return p.loaded }
+// emptyState is what an empty list says: a fatal: line, as git would print it, and the hints under it.
+func emptyState(fatal string, hints ...string) []string {
+	lines := []string{"", fmt.Sprintf("   [%s]fatal:[-] [%s]%s[-]", colorDanger, colorInk, tview.Escape(fatal))}
+	for _, h := range hints {
+		lines = append(lines, fmt.Sprintf("   [%s]%s[-]", colorMuted, h))
+	}
+
+	return lines
+}
+
+// endOfList closes a log the way the web does, with the hollow node of the root commit.
+func endOfList() string {
+	return fmt.Sprintf(" [%s]○[-] [%s]That's the root commit. There's nothing before it.[-]", colorRail, colorFaint)
+}
+
+func (p *pager[T]) Title() string { return p.title }
+func (p *pager[T]) Loaded() bool  { return p.loaded }
+func (p *pager[T]) Loading() bool { return p.loading }
 
 func (p *pager[T]) Reload() {
 	p.generation++
@@ -51,7 +73,8 @@ func (p *pager[T]) fetch(reset bool) {
 		return
 	}
 	p.loading = true
-	p.SetFooter(fmt.Sprintf("[%s]Loading…[-]", colorMuted))
+	p.SetFooter(fmt.Sprintf("   [%s]Reading from /dev/null…[-]", colorMuted))
+	p.app.spin()
 
 	generation, cursor := p.generation, p.cursor
 	var items []T
@@ -66,14 +89,19 @@ func (p *pager[T]) fetch(reset bool) {
 		p.loading = false
 
 		if err != nil {
-			p.SetFooter(fmt.Sprintf("[red]%s[-]", tview.Escape(err.Error())), fmt.Sprintf("[%s]Press R to try again.[-]", colorMuted))
+			p.SetFooter(fmt.Sprintf("   [%s]%s[-]", colorDanger, tview.Escape(errorMessage(err))), fmt.Sprintf("   [%s]Press R to try again.[-]", colorMuted))
 			p.app.flashError(err)
 			return
 		}
 
 		if reset {
+			selected := 0
+			if p.keep != nil && len(p.items) > 0 {
+				selected = p.keep(items)
+			}
 			p.selected, p.offset = 0, 0
 			p.SetItems(items)
+			p.selected = max(0, min(selected, len(items)-1))
 		} else {
 			p.Append(items)
 		}
@@ -81,9 +109,9 @@ func (p *pager[T]) fetch(reset bool) {
 
 		switch {
 		case len(p.items) == 0:
-			p.SetFooter(fmt.Sprintf("[%s]%s[-]", colorMuted, p.empty))
+			p.SetFooter(p.empty...)
 		case next == "":
-			p.SetFooter(fmt.Sprintf("[%s]── end ──[-]", colorMuted))
+			p.SetFooter(p.end)
 		default:
 			p.SetFooter()
 		}
@@ -105,4 +133,7 @@ func (p *pager[T]) Remove(index int) {
 	}
 
 	p.SetItems(append(p.items[:index], p.items[index+1:]...))
+	if len(p.items) == 0 && p.loaded {
+		p.SetFooter(p.empty...)
+	}
 }

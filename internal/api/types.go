@@ -13,6 +13,7 @@ type User struct {
 	Company        string    `json:"company"`
 	Location       string    `json:"location"`
 	Website        string    `json:"website"`
+	AvatarURL      string    `json:"avatar_url"`
 	HTMLURL        string    `json:"html_url"`
 	CreatedAt      time.Time `json:"created_at"`
 	CommitsCount   *int      `json:"commits_count"`
@@ -20,6 +21,16 @@ type User struct {
 	FollowingCount *int      `json:"following_count"`
 	// Lane is the user's color: a lane number from 0 to 5, or a custom "#rrggbb".
 	Lane json.RawMessage `json:"lane"`
+	// IsFollowed and FollowsYou say, in a list of people, how the signed-in user and this one follow each other.
+	IsFollowed *bool `json:"is_followed"`
+	FollowsYou *bool `json:"follows_you"`
+}
+
+// Mention is where a commit's body mentions someone, counted in characters.
+type Mention struct {
+	Username string `json:"username"`
+	Offset   int    `json:"offset"`
+	Length   int    `json:"length"`
 }
 
 // Segment is a piece of a commit's body: "text", inline "code", or a fenced code "block" highlighted as HTML.
@@ -68,6 +79,7 @@ type Commit struct {
 	Body            string        `json:"body"`
 	BodySegments    []Segment     `json:"body_segments"`
 	PreviewSegments []Segment     `json:"preview_segments"`
+	Mentions        []Mention     `json:"mentions"`
 	ParentID        *string       `json:"parent_id"`
 	HTMLURL         string        `json:"html_url"`
 	CreatedAt       time.Time     `json:"created_at"`

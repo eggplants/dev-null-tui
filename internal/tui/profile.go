@@ -3,92 +3,288 @@ package tui
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/gdamore/tcell/v2"
+	"github.com/rivo/tview"
 
 	"github.com/eggplants/dev-null-tui/internal/api"
 )
 
-// newProfile shows a user's profile above their commits, or their replies after T.
-func newProfile(app *App, username string) *commitFeed {
-	var profile *api.Profile
-	replies := false
+// profileTabNames are a profile's tabs, as the web has them.
+var profileTabNames = []string{"Commits", "Replies", "Followers", "Following"}
 
-	f := newCommitFeed(app, "@"+username, "No commits yet.", nil)
-	f.load = func(ctx context.Context, cursor string) ([]*api.Commit, string, error) {
-		if cursor == "" {
-			p, err := app.client.Profile(ctx, username)
+// profileView shows a user's profile above one of its tabs: their commits, their replies, their followers or whom
+// they follow.
+type profileView struct {
+	*tview.Box
+
+	app      *App
+	username string
+	profile  *api.Profile
+
+	tabs    []view
+	current int
+	// generation tells answers to an earlier Reload apart.
+	generation int
+}
+
+func newProfile(app *App, username string) *profileView {
+	p := &profileView{Box: tview.NewBox(), app: app, username: username}
+
+	commits := func(replies bool) *commitFeed {
+		empty := emptyState("no commits yet")
+		if replies {
+			empty = emptyState("no replies yet")
+		}
+		f := newCommitFeed(app, "@"+username, empty, func(ctx context.Context, cursor string) ([]*api.Commit, string, error) {
+			page, err := app.client.UserCommits(ctx, username, cursor, replies)
 			if err != nil {
 				return nil, "", err
 			}
-			// The header reads the profile while drawing, so it's swapped in on the UI goroutine.
-			app.tv.QueueUpdate(func() { profile = p })
-		}
 
-		page, err := app.client.UserCommits(ctx, username, cursor, replies)
-		if err != nil {
-			return nil, "", err
-		}
+			return pointers(page.Data), page.NextCursor, nil
+		})
+		f.byDay = true
+		f.header = p.header
+		f.keys = p.keys
+		f.hints = p.hints
+		return f
+	}
+	people := func(load func(ctx context.Context, username, cursor string) (*api.Page[api.User], error), empty []string) *peopleList {
+		l := newPeopleList(app, "@"+username, empty, func(ctx context.Context, cursor string) ([]*api.User, string, error) {
+			page, err := load(ctx, username, cursor)
+			if err != nil {
+				return nil, "", err
+			}
 
-		return pointers(page.Data), page.NextCursor, nil
+			return pointers(page.Data), page.NextCursor, nil
+		})
+		l.header = p.header
+		l.keys = p.keys
+		l.extraHints = p.hints
+		return l
 	}
 
-	f.header = func(width int) []string {
-		if profile == nil {
+	p.tabs = []view{
+		commits(false),
+		commits(true),
+		people(app.client.Followers, emptyState("no followers yet")),
+		people(app.client.Following, emptyState("not following anyone yet")),
+	}
+
+	return p
+}
+
+func (p *profileView) tab() view { return p.tabs[p.current] }
+
+func (p *profileView) Title() string { return "@" + p.username }
+
+func (p *profileView) Loaded() bool { return loaded(p.tab()) }
+func (p *profileView) Loading() bool {
+	l, ok := p.tab().(interface{ Loading() bool })
+	return ok && l.Loading()
+}
+
+func (p *profileView) Hints() []hint { return p.tab().Hints() }
+
+func (p *profileView) Position() (int, int) {
+	if l, ok := p.tab().(interface{ Position() (int, int) }); ok {
+		return l.Position()
+	}
+
+	return 0, 0
+}
+
+func (p *profileView) Select(i int) {
+	if l, ok := p.tab().(interface{ Select(int) }); ok {
+		l.Select(i)
+	}
+}
+
+// Reload fetches the profile again, and the tab under it.
+func (p *profileView) Reload() {
+	p.generation++
+	generation := p.generation
+
+	var profile *api.Profile
+	p.app.async(func(ctx context.Context) (err error) {
+		profile, err = p.app.client.Profile(ctx, p.username)
+		return err
+	}, func(err error) {
+		if generation != p.generation {
+			return
+		}
+		if err != nil {
+			p.app.flashError(err)
+			return
+		}
+		p.profile = profile
+		p.invalidate()
+	})
+	p.tab().Reload()
+}
+
+func (p *profileView) invalidate() {
+	for _, t := range p.tabs {
+		if h, ok := t.(interface{ Invalidate() }); ok {
+			h.Invalidate()
+		}
+	}
+}
+
+// header is what every tab shows above its list: the profile, the pinned commit and the tabs.
+func (p *profileView) header(width int) []string {
+	if p.profile == nil {
+		return []string{fmt.Sprintf("   [%s]Reading @%s from /dev/null…[-]", colorMuted, tview.Escape(p.username))}
+	}
+
+	me, left := "", -1
+	if p.app.me != nil {
+		me, left = p.app.me.Username, p.app.me.PasteisRemaining
+	}
+	lines := profileLines(p.profile, me, left, width)
+	if pinned := p.profile.PinnedCommit; pinned != nil && p.current == 0 {
+		lines = append(lines, "", dividerLine("◇ Pinned", width))
+		lines = append(lines, commitLines(pinned, false, false, width)...)
+	}
+
+	return append(lines, "", profileTabs(profileTabNames, p.current, width), fmt.Sprintf("[%s]%s[-]", theme.hairline, strings.Repeat("─", max(width, 0))))
+}
+
+func (p *profileView) isMe() bool {
+	return p.app.me != nil && p.username == p.app.me.Username
+}
+
+func (p *profileView) hints() []hint {
+	hints := []hint{{"T", "next tab"}}
+	if p.profile == nil || p.isMe() {
+		return hints
+	}
+
+	follow := "follow"
+	if p.profile.IsFollowing {
+		follow = "unfollow"
+	}
+	mute := "mute"
+	if p.profile.IsMuting {
+		mute = "unmute"
+	}
+
+	return append(hints, hint{"F", follow}, hint{"M", mute}, hint{"B", "block"})
+}
+
+// switchTab shows another of the profile's tabs, loading it the first time.
+func (p *profileView) switchTab(i int) {
+	p.current = i
+	p.invalidate()
+	p.app.show(p)
+	if !loaded(p.tab()) {
+		p.tab().Reload()
+	}
+}
+
+func (p *profileView) keys(event *tcell.EventKey) *tcell.EventKey {
+	if event.Key() != tcell.KeyRune {
+		return event
+	}
+
+	switch event.Rune() {
+	case 'T':
+		p.switchTab((p.current + 1) % len(p.tabs))
+	case 'F':
+		if p.profile == nil || p.isMe() {
 			return nil
 		}
-
-		lines := profileLines(profile, width)
-		if pinned := profile.PinnedCommit; pinned != nil && !replies {
-			lines = append(lines, fmt.Sprintf("[%s]Pinned[-]", colorMuted))
-			lines = append(lines, commitLines(pinned, false, false, width)...)
+		follow := !p.profile.IsFollowing
+		done := "Unfollowed @%s."
+		if follow {
+			done = "Following @%s."
 		}
-		mode := "Commits"
-		if replies {
-			mode = "Replies"
+		p.relate(func(ctx context.Context) error { return p.app.client.Follow(ctx, p.username, follow) }, done)
+	case 'M':
+		if p.profile == nil || p.isMe() {
+			return nil
 		}
-
-		return append(lines, fmt.Sprintf("[::b]%s[::-] [%s](T to switch)[-]", mode, colorMuted), "")
+		mute := !p.profile.IsMuting
+		done := "Unmuted @%s."
+		if mute {
+			done = "Muted @%s: their commits stay out of your logs."
+		}
+		p.relate(func(ctx context.Context) error { return p.app.client.Mute(ctx, p.username, mute) }, done)
+	case 'B':
+		if p.profile == nil || p.isMe() {
+			return nil
+		}
+		p.app.confirm(fmt.Sprintf("Block @%s? They can't follow you or answer your commits, and you both unfollow each other.", p.username), func() {
+			p.relate(func(ctx context.Context) error { return p.app.client.Block(ctx, p.username, true) }, "Blocked @%s. Settings (g S) lists who you block.")
+		})
+	default:
+		return event
 	}
 
-	f.keys = func(event *tcell.EventKey) *tcell.EventKey {
-		if event.Key() != tcell.KeyRune {
-			return event
-		}
+	return nil
+}
 
-		switch event.Rune() {
-		case 'T':
-			replies = !replies
-			f.empty = "No commits yet."
-			if replies {
-				f.empty = "No replies yet."
-			}
-			f.Reload()
-		case 'F':
-			if profile == nil || profile.Data.ID == app.me.ID {
-				return nil
-			}
-			follow := !profile.IsFollowing
-			app.async(func(ctx context.Context) error {
-				return app.client.Follow(ctx, username, follow)
-			}, func(err error) {
-				if err != nil {
-					app.flashError(err)
-					return
-				}
-				f.Reload()
-				if follow {
-					app.flash("Following @%s.", username)
-				} else {
-					app.flash("Unfollowed @%s.", username)
-				}
-			})
-		default:
-			return event
+// relate follows, mutes or blocks the user, then reads the profile again to show it.
+func (p *profileView) relate(action func(ctx context.Context) error, done string) {
+	p.app.act(action, func(err error) {
+		if err != nil {
+			p.app.flashError(err)
+			return
 		}
+		p.Reload()
+		p.app.succeed(done, p.username)
+	})
+}
 
-		return nil
+func (p *profileView) eachCommit(f func(c *api.Commit)) {
+	if p.profile != nil && p.profile.PinnedCommit != nil {
+		f(p.profile.PinnedCommit)
 	}
+	for _, t := range p.tabs {
+		if h, ok := t.(commitHolder); ok {
+			h.eachCommit(f)
+		}
+	}
+}
 
-	return f
+func (p *profileView) removeCommit(id string) {
+	if p.profile != nil && p.profile.PinnedCommit != nil && p.profile.PinnedCommit.ID == id {
+		p.profile.PinnedCommit = nil
+	}
+	for _, t := range p.tabs {
+		if h, ok := t.(commitHolder); ok {
+			h.removeCommit(id)
+		}
+	}
+}
+
+func (p *profileView) Invalidate() { p.invalidate() }
+
+// prepend puts a commit the user just made on top of their commits.
+func (p *profileView) prepend(c *api.Commit) {
+	if f, ok := p.tabs[0].(*commitFeed); ok && c.ParentID == nil {
+		f.prepend(c)
+	}
+	if f, ok := p.tabs[1].(*commitFeed); ok && c.ParentID != nil {
+		f.prepend(c)
+	}
+}
+
+func (p *profileView) Draw(screen tcell.Screen) {
+	x, y, width, height := p.GetRect()
+	p.tab().SetRect(x, y, width, height)
+	p.tab().Draw(screen)
+}
+
+func (p *profileView) Focus(delegate func(tview.Primitive)) { delegate(p.tab()) }
+func (p *profileView) HasFocus() bool                       { return p.tab().HasFocus() }
+
+func (p *profileView) InputHandler() func(event *tcell.EventKey, setFocus func(p tview.Primitive)) {
+	return p.tab().InputHandler()
+}
+
+func (p *profileView) MouseHandler() func(action tview.MouseAction, event *tcell.EventMouse, setFocus func(p tview.Primitive)) (bool, tview.Primitive) {
+	return p.tab().MouseHandler()
 }

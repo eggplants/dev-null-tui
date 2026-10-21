@@ -141,7 +141,7 @@ func (a *App) pickImage(add func(attachment)) {
 	attach := func(path string) {
 		img, err := checkImage(path)
 		if err != nil {
-			hint.SetText(fmt.Sprintf("[red]%s[-]", tview.Escape(err.Error())))
+			hint.SetText(fmt.Sprintf("[%s]%s[-]", colorDanger, tview.Escape(err.Error())))
 			return
 		}
 		a.closeModal("attach")

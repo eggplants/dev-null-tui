@@ -172,16 +172,16 @@ func imageAPI(w http.ResponseWriter, r *http.Request) {
 func TestViewsACommitsImages(t *testing.T) {
 	h := start(t, http.HandlerFunc(imageAPI))
 
-	h.waitFor("[2 images · i to view]")
+	h.waitFor("2 images · 8×4 · i to view")
 	h.typeText("i")
 	h.waitFor("Image 1/2")
 	// The simulation screen has no graphics protocol, so the image is drawn in blocks.
-	h.waitForGone("Loading…")
+	h.waitForGone("Reading from /dev/null")
 
 	h.typeText("n")
 	h.waitFor("Image 2/2")
 	h.waitFor("fetching the image: 404 Not Found")
 
 	h.key(tcell.KeyEscape)
-	h.waitFor("[2 images · i to view]")
+	h.waitFor("2 images · 8×4 · i to view")
 }

@@ -29,7 +29,7 @@ Type "j"
 Sleep 700ms
 Type "j"
 Sleep 1s
-Type "g"
+Type "gg"
 Sleep 700ms
 Enter
 Sleep 1.5s

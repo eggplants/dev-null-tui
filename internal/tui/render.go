@@ -242,7 +242,8 @@ func authorName(u *api.User) string {
 		name = u.Username
 	}
 
-	return fmt.Sprintf("[%s::b]%s[-::-] [%s]@%s[-]", laneColor(u), tview.Escape(name), colorMuted, tview.Escape(u.Username))
+	// Lanes are identity on the web: they color the graph, never the text.
+	return fmt.Sprintf("[%s::b]%s[-::-] [%s]@%s[-]", colorInk, tview.Escape(name), colorMuted, tview.Escape(u.Username))
 }
 
 // authorLine is a commit's head: who and when, and its review status.
@@ -531,7 +532,7 @@ func notificationLines(n *api.Notification, selected bool, width int) []string {
 			if name == "" {
 				name = n.Actor.Username
 			}
-			actor = fmt.Sprintf("[%s::b]%s[-::-]", laneColor(n.Actor), tview.Escape(name))
+			actor = fmt.Sprintf("[%s::b]%s[-::-]", colorInk, tview.Escape(name))
 		}
 		if others := n.ActorsCount - 1; others > 0 {
 			actor += fmt.Sprintf("[%s] and %d other%s[-]", colorInk, others, plural(others))

@@ -24,7 +24,7 @@
 
 A terminal client for [dev-null.sh](https://dev-null.sh), the social network for developers, built with [tview](https://github.com/rivo/tview).
 
-
+https://github.com/user-attachments/assets/f44e8bf3-aa9e-4f31-9abc-a0167c4f7756
 
 ## Install
 

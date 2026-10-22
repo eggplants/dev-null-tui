@@ -4,10 +4,11 @@ package tui
 
 import (
 	"bytes"
+	"errors"
 	"os"
-	"syscall"
 	"time"
 
+	"golang.org/x/sys/unix"
 	"golang.org/x/term"
 )
 
@@ -26,25 +27,39 @@ func queryTerminal(query string) []byte {
 		return nil
 	}
 	defer term.Restore(fd, state)
-	// Fd made the file blocking; reads need it non-blocking for the deadline to work.
-	_ = syscall.SetNonblock(fd, true)
 
 	if _, err := f.WriteString(query); err != nil {
 		return nil
 	}
-	if err := f.SetReadDeadline(time.Now().Add(500 * time.Millisecond)); err != nil {
-		return nil
-	}
 
+	// macOS can't poll /dev/tty with kqueue, so the file takes no deadline; select waits for the answers instead.
+	deadline := time.Now().Add(500 * time.Millisecond)
 	var answer []byte
 	buf := make([]byte, 256)
 	for {
-		n, err := f.Read(buf)
-		answer = append(answer, buf[:n]...)
+		left := time.Until(deadline)
+		if left <= 0 {
+			return answer
+		}
+		var fds unix.FdSet
+		fds.Set(fd)
+		timeout := unix.NsecToTimeval(left.Nanoseconds())
+		n, err := unix.Select(fd+1, &fds, nil, nil, &timeout)
+		if errors.Is(err, unix.EINTR) {
+			continue
+		}
+		if err != nil || n == 0 {
+			return answer
+		}
+
+		n, err = unix.Read(fd, buf)
+		if n > 0 {
+			answer = append(answer, buf[:n]...)
+		}
 		if i := bytes.Index(answer, []byte("\x1b[?")); i >= 0 && bytes.IndexByte(answer[i:], 'c') >= 0 {
 			return answer
 		}
-		if err != nil {
+		if err != nil && !errors.Is(err, unix.EINTR) && !errors.Is(err, unix.EAGAIN) {
 			return answer
 		}
 	}

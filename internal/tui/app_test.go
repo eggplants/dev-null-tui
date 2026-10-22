@@ -77,6 +77,8 @@ type harness struct {
 	t      *testing.T
 	screen tcell.SimulationScreen
 	app    *App
+	// stopped closes when the app stops running.
+	stopped chan struct{}
 }
 
 // start runs the TUI against handler, after configure (if any) has set the app up.
@@ -115,7 +117,11 @@ func startOn(t *testing.T, handler http.Handler, wrap func(tcell.SimulationScree
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	done := make(chan error, 1)
-	go func() { done <- app.Run(ctx) }()
+	stopped := make(chan struct{})
+	go func() {
+		done <- app.Run(ctx)
+		close(stopped)
+	}()
 	t.Cleanup(func() {
 		cancel()
 		app.tv.Stop()
@@ -124,7 +130,7 @@ func startOn(t *testing.T, handler http.Handler, wrap func(tcell.SimulationScree
 		}
 	})
 
-	return &harness{t: t, screen: screen, app: app}
+	return &harness{t: t, screen: screen, app: app, stopped: stopped}
 }
 
 // text reads the screen on the UI goroutine, which is the one that draws on it.
@@ -183,6 +189,17 @@ func (h *harness) waitUntil(ok func(screen string) bool, what string) {
 	}
 
 	h.t.Fatalf("the screen didn't %s:\n%s", what, h.text())
+}
+
+// waitForStop waits until the app stops running.
+func (h *harness) waitForStop() {
+	h.t.Helper()
+
+	select {
+	case <-h.stopped:
+	case <-time.After(5 * time.Second):
+		h.t.Fatalf("the app didn't stop:\n%s", h.text())
+	}
 }
 
 func (h *harness) key(key tcell.Key) {

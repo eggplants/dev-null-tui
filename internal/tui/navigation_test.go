@@ -220,6 +220,20 @@ func TestQQuotesRatherThanQuits(t *testing.T) {
 	h.waitForGone("Quote")
 }
 
+func TestEscGoesBackThenQuits(t *testing.T) {
+	h := start(t, &fakeAPI{})
+	h.waitFor("abc1234")
+
+	h.key(tcell.KeyEnter)
+	h.waitFor("Thread abc1234")
+
+	// Esc goes back while there is somewhere to go back to, and quits at the tab's root, as Q does.
+	h.key(tcell.KeyEscape)
+	h.waitForGone("Thread abc1234")
+	h.key(tcell.KeyEscape)
+	h.waitForStop()
+}
+
 func TestChangesTheTUIsSettings(t *testing.T) {
 	var mu sync.Mutex
 	saved := map[string]string{}

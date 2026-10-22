@@ -979,7 +979,13 @@ func (a *App) globalKeys(event *tcell.EventKey) *tcell.EventKey {
 	case tcell.KeyBacktab:
 		a.switchTab((a.current + len(a.tabs) - 1) % len(a.tabs))
 		return nil
-	case tcell.KeyEscape, tcell.KeyBackspace, tcell.KeyBackspace2:
+	case tcell.KeyEscape:
+		// Esc goes back, and at a tab's root, where there is nothing to go back to, quits as Q does.
+		if !a.pop() {
+			a.tv.Stop()
+		}
+		return nil
+	case tcell.KeyBackspace, tcell.KeyBackspace2:
 		a.pop()
 		return nil
 	case tcell.KeyCtrlK:
@@ -1067,7 +1073,7 @@ func helpText() string {
 		row("⏎ l", "open the thread", "esc h ⌫", "back")+
 		row("g l/a/e", "following/latest/hot", "g n/b/p", "notifs/starred/me")+
 		row("g s", "settings", "/ ^k", "go to @user or link")+
-		row("Q", "quit", "^c", "quit")+
+		row("Q ^c", "quit", "esc", "quit, at a tab's top")+
 		"\n"+section("Commits")+
 		row("c", "new commit", "R", "refresh")+
 		row("r", "reply", "q", "quote")+

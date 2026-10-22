@@ -101,7 +101,7 @@ them.
 | `g` then `a` `n` `b` | Latest, Notifications, Starred |
 | `/` `^k` | Go to an `@username`, a profile's or commit's link, or a hash on screen |
 | `⏎` `l` (or click it again) | Open the thread; on the open commit, reply |
-| `Esc` `h` `⌫` | Back |
+| `Esc` `h` `⌫` | Back; `Esc` at a tab's top quits |
 | `c` | New commit |
 | `r` / `q` | Reply / quote |
 | `o` | Show / hide the replies under a commit |

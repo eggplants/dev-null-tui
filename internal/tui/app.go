@@ -429,17 +429,22 @@ func (a *App) drawHeaderBox(screen tcell.Screen, x, y, width, height int) (int, 
 			if tier.short {
 				name = t.short
 			}
+			// The current tab is filled with the primary color, so it stands out from the others at a glance.
+			fg, number, badgeFg, badgeBg := colorMuted, colorFaint, theme.popover, colorPrimary
+			if i == a.current {
+				fg, number, badgeFg, badgeBg = theme.shell, theme.primarySoft, colorPrimary, theme.popover
+			}
 			label := tview.Escape(name)
 			if tier.numbers {
-				label = fmt.Sprintf("[%s]%d[-] %s", colorFaint, i+1, label)
+				label = fmt.Sprintf("[%s]%d[%s] %s", number, i+1, fg, label)
 			}
 			if i == a.current {
-				label = fmt.Sprintf("[%s:%s:b] %s [-:-:-]", colorInk, theme.primarySoft, label)
+				label = fmt.Sprintf("[%s:%s:b] %s [-:-:-]", fg, colorPrimary, label)
 			} else {
-				label = fmt.Sprintf("[%s] %s [-]", colorMuted, label)
+				label = fmt.Sprintf("[%s] %s [-]", fg, label)
 			}
 			if t.name == "Notifications" && a.unread > 0 {
-				label += fmt.Sprintf("[%s:%s:b]%d[-:-:-]", theme.popover, colorPrimary, a.unread)
+				label += fmt.Sprintf("[%s:%s:b]%d[-:-:-]", badgeFg, badgeBg, a.unread)
 			}
 			if f, ok := t.stack[0].(*commitFeed); ok && f.newCount > 0 {
 				label += fmt.Sprintf("[%s]↑%d[-]", colorPrimary, f.newCount)

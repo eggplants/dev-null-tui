@@ -24,7 +24,7 @@
 
 A terminal client for [dev-null.sh](https://dev-null.sh), the social network for developers, built with [tview](https://github.com/rivo/tview).
 
-![demo](demo.gif)
+
 
 ## Install
 
@@ -47,20 +47,19 @@ docker run --rm -it -v ~/.config/devnull-tui:/root/.config/devnull-tui:ro ghcr.i
 ```sh
 # approve this TUI's SSH key on the web
 dn login
+dn l
 
 # check
 dn whoami
+dn w
 
 # open the TUI
-dn          
+dn
 ```
-
-`login`, `whoami` and `commit` can be shortened to `l`, `w` and `c` (e.g. `dn c 'Hello world!'`). `dn config` shows the
-TUI's settings and where each one comes from.
 
 ### Committing from the shell
 
-`dn commit` signs and pushes the commit with an Ed25519 or RSA key from your SSH agent or `~/.ssh`.
+`dn commit` / `dn c` signs and pushes the commit with an Ed25519 or RSA key from your SSH agent or `~/.ssh`.
 
 ```sh
 # post

@@ -1,4 +1,4 @@
-Output demo.gif
+Output demo.mp4
 
 Require go
 

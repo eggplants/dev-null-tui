@@ -70,13 +70,4 @@ EOF
 '''
 
 [tasks.demo]
-run = """
-#!/usr/bin/env bash
-set -euxo pipefail
-vhs demo.tape
-ffmpeg -v error -y -i demo.gif -filter_complex '
-  [0:v]split[a][b];
-  [a]palettegen=max_colors=32:stats_mode=diff[p];
-  [b][p]paletteuse=dither=none:diff_mode=rectangle' demo.min.gif
-mv demo.min.gif demo.gif
-"""
+run = "vhs demo.tape"

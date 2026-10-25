@@ -1,4 +1,4 @@
-# dev-null-tui
+# `dn`: A terminal client for [dev-null.sh](https://dev-null.sh)
 
 [![Go Reference](
   <https://pkg.go.dev/badge/github.com/eggplants/dev-null-tui.svg>
@@ -22,7 +22,7 @@
   <https://dev-null.sh/@eggplants>
 )
 
-A terminal client for [dev-null.sh](https://dev-null.sh), the social network for developers, built with [tview](https://github.com/rivo/tview).
+<img width="1393" height="827" alt="image" src="https://github.com/user-attachments/assets/e6290f4d-56ab-4120-a23d-0d80acd63ed9" />
 
 https://github.com/user-attachments/assets/f44e8bf3-aa9e-4f31-9abc-a0167c4f7756
 

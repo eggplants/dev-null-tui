@@ -137,21 +137,56 @@ func (o *organizationView) orgHints() []hint {
 	if o.org == nil {
 		return nil
 	}
+	hints := []hint{{"F", "follow"}}
 	if o.org.IsFollowing {
-		return []hint{{"F", "unfollow"}}
+		hints = []hint{{"F", "unfollow"}}
+	}
+	if o.org.CanClaim {
+		hints = append(hints, hint{"C", "claim"})
 	}
 
-	return []hint{{"F", "follow"}}
+	return hints
 }
 
 func (o *organizationView) orgKeys(event *tcell.EventKey) *tcell.EventKey {
-	if event.Key() != tcell.KeyRune || event.Rune() != 'F' {
+	if event.Key() != tcell.KeyRune || o.org == nil {
 		return event
 	}
-	if o.org == nil {
-		return nil
+	switch event.Rune() {
+	case 'F':
+		o.toggleFollow()
+	case 'C':
+		o.claim()
+	default:
+		return event
 	}
 
+	return nil
+}
+
+// claim claims the organization's page, as Claim does on the web, for someone GitHub says belongs to it.
+func (o *organizationView) claim() {
+	if !o.org.CanClaim {
+		o.app.flash("@%s's page has admins already.", o.handle)
+		return
+	}
+
+	o.app.confirm(fmt.Sprintf("Claim @%s's page? GitHub has to say you belong to the organization.", o.handle), func() {
+		o.app.act(func(ctx context.Context) error {
+			return o.app.client.ClaimOrganization(ctx, o.handle)
+		}, func(err error) {
+			if err != nil {
+				o.app.flashError(err)
+				return
+			}
+			o.app.succeed("You run @%s's page now.", o.handle)
+			o.Reload()
+		})
+	})
+}
+
+// toggleFollow follows the organization, or unfollows it.
+func (o *organizationView) toggleFollow() {
 	follow := !o.org.IsFollowing
 	o.app.act(func(ctx context.Context) error {
 		return o.app.client.FollowOrganization(ctx, o.handle, follow)
@@ -175,6 +210,4 @@ func (o *organizationView) orgKeys(event *tcell.EventKey) *tcell.EventKey {
 			o.app.succeed("Unfollowed @%s.", o.handle)
 		}
 	})
-
-	return nil
 }

@@ -119,7 +119,7 @@ them.
 | `D` | Delete your commit |
 | `U` | Undo the delete, for 30 seconds |
 | `!` | Report a commit |
-| `F` / `M` / `B` | Follow / mute / block (on a profile; organizations can be followed) |
+| `F` / `M` / `B` | Follow / mute / block (on a profile; organizations can be followed, and `C` claims one's page) |
 | `T` | Next tab of a profile (commits, replies, followers, following, orgs), an organization (commits, mentions) or a search (commits, people) |
 | `f` / `e` | Filter notifications by kind / list everyone in a group |
 | `R` | Refresh |

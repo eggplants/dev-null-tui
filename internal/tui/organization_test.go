@@ -14,6 +14,7 @@ import (
 type orgAPI struct {
 	mu        sync.Mutex
 	following bool
+	claimed   bool
 }
 
 func (f *orgAPI) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -46,12 +47,16 @@ func (f *orgAPI) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				"handle": "acme", "name": "Acme Corp", "bio": "We make anvils.", "followers_count": followers,
 				"admins": []any{map[string]any{"id": "u1", "handle": "wile", "name": "Wile E."}},
 			},
-			"is_following": f.following,
+			"is_following": f.following, "can_claim": !f.claimed,
 		}
 	case "GET /api/v1/organizations/acme/commits":
 		out = page(map[string]any{"id": "c1", "short_hash": "aaa1111", "body": "we shipped", "status": "approved", "created_at": at, "author": acme})
 	case "GET /api/v1/organizations/acme/mentions":
 		out = page(map[string]any{"id": "c2", "short_hash": "bbb2222", "body": "thanks @acme", "status": "approved", "created_at": at, "author": me})
+	case "POST /api/v1/organizations/acme/claim":
+		f.claimed = true
+		w.WriteHeader(http.StatusNoContent)
+		return
 	case "POST /api/v1/organizations/acme/follow":
 		f.following = true
 		w.WriteHeader(http.StatusNoContent)
@@ -93,4 +98,24 @@ func TestOpensAnOrganizationWhereAProfileWouldBe(t *testing.T) {
 	h.key(tcell.KeyEnter)
 	h.waitFor("We make anvils.")
 	h.waitForGone("not found")
+}
+
+func TestClaimsAnOrganization(t *testing.T) {
+	f := &orgAPI{}
+	h := start(t, f)
+	h.waitFor("we shipped")
+
+	h.typeText("u")
+	h.waitFor("We make anvils.")
+	h.typeText("C")
+	h.waitFor("Claim @acme's page?")
+	h.key(tcell.KeyRight)
+	h.key(tcell.KeyEnter)
+	h.waitFor("You run @acme's page now.")
+
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if !f.claimed {
+		t.Error("didn't claim it")
+	}
 }

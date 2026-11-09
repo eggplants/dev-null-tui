@@ -101,3 +101,12 @@ func (c *Client) Settings(ctx context.Context) (*Settings, error) {
 
 	return &res.Data, err
 }
+
+// Preview shows a draft as the commit it would become: the body as it would be kept, with emoji shortcodes turned
+// into emoji, the segments to draw it from and whom it mentions.
+func (c *Client) Preview(ctx context.Context, body string) (*Commit, error) {
+	var res data[Commit]
+	err := c.Do(ctx, http.MethodPost, "/api/v1/commits/preview", map[string]string{"body": body}, &res)
+
+	return &res.Data, err
+}

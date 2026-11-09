@@ -206,3 +206,15 @@ func TestRepliesToWhomTheParentWasAddressed(t *testing.T) {
 		t.Errorf("sent to %v, then %v", f.drafts[0].ReplyRecipients, f.drafts[1].ReplyRecipients)
 	}
 }
+
+func TestPreviewsAsTheServerWouldKeepIt(t *testing.T) {
+	h := start(t, &fakeAPI{})
+	h.waitFor("abc1234")
+
+	h.typeText("c")
+	h.waitFor("New commit")
+	h.typeText(":tada: shipped")
+	h.key(tcell.KeyCtrlP)
+	h.waitFor("🎉")
+	h.waitFor("shipped")
+}

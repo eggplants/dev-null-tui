@@ -145,7 +145,7 @@ In the composer:
 | `^s` `^⏎` | Commit (`^⏎` where the terminal tells it from `⏎`) |
 | `Esc` | Close; a new commit's text is kept as a draft for the next `c` |
 | `^e` | Write it in `$VISUAL` or `$EDITOR` |
-| `^p` | Preview |
+| `^p` | Preview, as the server would keep it (emoji shortcodes and all) |
 | `Tab` | Complete the `@mention` being typed, as the web suggests it, or a `#number` into the link of that /dev/null issue |
 | `^o` | Attach an image (`Tab` completes the path); pasting or dropping an image file attaches it too |
 | `^v` | Attach the image on the clipboard |

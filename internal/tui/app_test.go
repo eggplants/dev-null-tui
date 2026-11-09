@@ -90,6 +90,11 @@ func (f *fakeAPI) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	case "POST /api/v1/commits/c1/star":
 		f.starred = true
 		out = map[string]any{"data": commit()}
+	case "POST /api/v1/commits/preview":
+		var in map[string]string
+		_ = json.NewDecoder(r.Body).Decode(&in)
+		body := strings.ReplaceAll(in["body"], ":tada:", "🎉")
+		out = map[string]any{"data": map[string]any{"body": body, "body_segments": []any{map[string]any{"type": "text", "text": body}}}}
 	case "POST /api/v1/commits":
 		var in api.NewCommit
 		body, _ := io.ReadAll(r.Body)

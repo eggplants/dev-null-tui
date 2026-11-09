@@ -103,13 +103,45 @@ func (a *App) compose(opts composeOptions) {
 	area.SetBackgroundColor(tcell.GetColor(theme.popover))
 
 	showingPreview := false
-	updatePreview := func() {
+	// previews are the server's previews of each body asked for, and previewing counts the asks so only the last of
+	// a quick run of keys is sent.
+	previews := map[string]*api.Commit{}
+	previewing := 0
+	var updatePreview func()
+	askPreview := func(body string) {
+		previewing++
+		ask := previewing
+		time.AfterFunc(previewDelay, func() {
+			a.tv.QueueUpdate(func() {
+				if ask != previewing || !showingPreview {
+					return
+				}
+				var served *api.Commit
+				a.async(func(ctx context.Context) (err error) {
+					served, err = a.client.Preview(ctx, body)
+					return err
+				}, func(err error) {
+					// The preview drawn here stands in until the server's comes, or if it doesn't.
+					if err == nil {
+						previews[body] = served
+						updatePreview()
+					}
+				})
+			})
+		})
+	}
+	updatePreview = func() {
 		if !showingPreview {
 			form.ResizeItem(area, 0, 1).ResizeItem(preview, 0, 0)
 			return
 		}
 		body := normalizeBody(area.GetText())
 		lines := bodyLines(previewSegments(body), body, nil, composeWidth-6)
+		if served, ok := previews[body]; ok {
+			lines = bodyLines(served.BodySegments, served.Body, served.Mentions, composeWidth-6)
+		} else if strings.TrimSpace(body) != "" {
+			askPreview(body)
+		}
 		if len(lines) == 0 {
 			lines = []string{fmt.Sprintf("[%s]Nothing to preview yet.[-]", colorFaint)}
 		}
@@ -467,6 +499,9 @@ func (i *issueState) line(width int) string {
 
 	return truncateLines([]string{fmt.Sprintf("[%s::b]tab[-::-] [%s::b]#%d[-::-] [%s]%s[-]", colorInk, colorPrimary, i.found.Number, colorMuted, tview.Escape(i.found.Title))}, 1)[0]
 }
+
+// previewDelay is how long the composer waits for the next key before asking the server for its preview.
+const previewDelay = 400 * time.Millisecond
 
 // mentionDelay is how long the composer waits for the next key before asking whom a mention being typed could be.
 const mentionDelay = 250 * time.Millisecond

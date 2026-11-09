@@ -32,6 +32,8 @@ type User struct {
 	// IsFollowed and FollowsYou say, in a list of people, how the signed-in user and this one follow each other.
 	IsFollowed *bool `json:"is_followed"`
 	FollowsYou *bool `json:"follows_you"`
+	// Live is the stream they are live on, if they are.
+	Live *Live `json:"live"`
 }
 
 // Mention is where a commit's body mentions someone, counted in characters.

@@ -418,6 +418,7 @@ func attachmentLines(c *api.Commit, width int) []string {
 			label += fmt.Sprintf(" · %d×%d", img.Width, img.Height)
 		}
 		lines = append(lines, fmt.Sprintf("[%s]▣ %s · i to view[-]", colorMuted, label))
+		lines = append(lines, altLines(c.Images, width)...)
 	}
 
 	if lp := c.LinkPreview; lp != nil {
@@ -434,6 +435,23 @@ func attachmentLines(c *api.Commit, width int) []string {
 		lines = append(lines, boxed(quote, width)...)
 	} else if c.QuotedCommitID != nil {
 		lines = append(lines, boxed([]string{fmt.Sprintf("[%s::i]This commit is unavailable.[-::-]", colorFaint)}, width)...)
+	}
+
+	return lines
+}
+
+// altLines are the images' alt texts, which say what they show where they aren't drawn or can't be made out.
+func altLines(images []api.Image, width int) []string {
+	var lines []string
+	for i, img := range images {
+		if img.Description == "" {
+			continue
+		}
+		alt := "alt: "
+		if len(images) > 1 {
+			alt = fmt.Sprintf("alt %d: ", i+1)
+		}
+		lines = append(lines, truncateLines(wrap(fmt.Sprintf("[%s]%s%s[-]", colorFaint, alt, tview.Escape(img.Description)), "  ", width), 2)...)
 	}
 
 	return lines

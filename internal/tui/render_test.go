@@ -297,3 +297,17 @@ func TestWordsNotificationsAsTheWebDoes(t *testing.T) {
 		}
 	}
 }
+
+func TestShowsTheAltTextOfImages(t *testing.T) {
+	c := &api.Commit{
+		ID: "c1", ShortHash: "abc1234", Body: "look", Author: &api.User{Username: "ada"},
+		Images: []api.Image{{ID: "i1", Width: 800, Height: 600, Description: "a cat on a keyboard"}, {ID: "i2"}},
+	}
+	got := stripTags(strings.Join(commitLines(c, false, false, 80), "\n"))
+	if !strings.Contains(got, "alt 1: a cat on a keyboard") {
+		t.Errorf("no alt text in:\n%s", got)
+	}
+	if strings.Contains(got, "alt 2") {
+		t.Errorf("an image without alt text has a line:\n%s", got)
+	}
+}

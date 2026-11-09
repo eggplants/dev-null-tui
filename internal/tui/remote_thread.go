@@ -388,6 +388,7 @@ func (t *remoteThread) render(m *api.Message, selected bool, width int) []string
 	}
 	if n := len(m.Images); n > 0 {
 		lines = append(lines, rail+fmt.Sprintf("[%s]▣ %d image%s · i to view[-]", colorMuted, n, plural(n)))
+		lines = append(lines, prefixed(rail, altLines(m.Images, inner))...)
 	}
 	if v := m.Voice; v != nil {
 		d := time.Duration(v.DurationMS) * time.Millisecond

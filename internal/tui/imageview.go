@@ -107,6 +107,14 @@ func (v *imageViewer) Draw(screen tcell.Screen) {
 	title := fmt.Sprintf(" [%s::b]Image %d/%d[-::-] [%s]%d×%d[-]", colorInk, v.index+1, len(v.images), colorMuted, img.Width, img.Height)
 	tview.Print(screen, title, x, y, width, tview.AlignLeft, tcell.GetColor(colorInk))
 	y, height = y+2, height-2
+	// The alt text goes under the title, for whoever can't make out the image, or the terminal can't draw it.
+	if img.Description != "" && height > 4 {
+		alt := truncateLines(wrap(fmt.Sprintf("[%s]alt: %s[-]", colorMuted, tview.Escape(img.Description)), " ", width), 2)
+		for i, line := range alt {
+			tview.Print(screen, line, x, y+i, width, tview.AlignLeft, tcell.GetColor(colorInk))
+		}
+		y, height = y+len(alt)+1, height-len(alt)-1
+	}
 
 	decoded := v.decoded[v.index]
 	switch {

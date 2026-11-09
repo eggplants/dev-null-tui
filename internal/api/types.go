@@ -59,6 +59,8 @@ type Image struct {
 	URL    string `json:"url"`
 	Width  int    `json:"width"`
 	Height int    `json:"height"`
+	// Description is the image's alt text, if its author gave it one.
+	Description string `json:"description"`
 }
 
 type LinkPreview struct {

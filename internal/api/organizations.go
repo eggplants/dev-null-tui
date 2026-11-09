@@ -59,3 +59,9 @@ func (c *Client) FollowedOrganizations(ctx context.Context, username, cursor str
 
 	return page, err
 }
+
+// ClaimOrganization claims an organization's page for the user, which GitHub confirms they belong to. Someone else
+// claiming it in between leaves it theirs.
+func (c *Client) ClaimOrganization(ctx context.Context, handle string) error {
+	return c.Do(ctx, http.MethodPost, organizationPath(handle)+"/claim", nil, nil)
+}

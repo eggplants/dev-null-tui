@@ -18,17 +18,28 @@ type accountAPI struct {
 	timezone  string
 	revoked   []string
 	remotes   bool
+	// termsChanged has the terms changed since the user accepted them, until they accept the version accepted.
+	termsChanged bool
+	accepted     string
 }
 
 func (f *accountAPI) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 
-	me := map[string]any{"data": map[string]any{"id": "u0", "handle": "me", "name": "Me", "lane": 1}}
+	me := map[string]any{"data": map[string]any{
+		"id": "u0", "handle": "me", "name": "Me", "lane": 1,
+		"terms_version": "2026-11-01", "terms_accepted": f.accepted != "" || !f.termsChanged,
+	}}
 	var out any
 	switch r.Method + " " + r.URL.Path {
 	case "GET /api/v1/me":
 		out = me
+	case "PUT /api/v1/me/terms":
+		var in map[string]string
+		_ = json.NewDecoder(r.Body).Decode(&in)
+		f.accepted = in["version"]
+		out = map[string]any{"data": map[string]any{"id": "u0", "handle": "me", "name": "Me", "lane": 1, "terms_version": "2026-11-01", "terms_accepted": true}}
 	case "PUT /api/v1/me/remotes":
 		var in map[string]bool
 		_ = json.NewDecoder(r.Body).Decode(&in)
@@ -156,7 +167,7 @@ func TestRevokesADevice(t *testing.T) {
 	h := start(t, f)
 	h.waitFor("Following")
 
-	h.openSetting("Devices", 12)
+	h.openSetting("Devices", 13)
 	h.waitFor("lists them, to revoke one")
 	h.key(tcell.KeyEnter)
 	h.waitFor("an old laptop")
@@ -191,5 +202,26 @@ func TestTurnsRemotesOn(t *testing.T) {
 	defer f.mu.Unlock()
 	if !f.remotes {
 		t.Error("didn't turn them on")
+	}
+}
+
+func TestAcceptsTheTermsWhenTheyChanged(t *testing.T) {
+	f := &accountAPI{termsChanged: true}
+	h := start(t, f)
+	h.waitFor("The terms and privacy policy changed.")
+
+	h.openSetting("Terms", 12)
+	h.waitFor("changed: read and accept them")
+	h.key(tcell.KeyEnter)
+	h.waitFor("I accept them")
+	h.key(tcell.KeyRight)
+	h.key(tcell.KeyEnter)
+	h.waitFor("You accepted the terms and privacy policy.")
+	h.waitForGone("changed: read and accept them")
+
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if f.accepted != "2026-11-01" {
+		t.Errorf("accepted %q", f.accepted)
 	}
 }

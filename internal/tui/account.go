@@ -87,6 +87,22 @@ func (s *settingsView) accountSettings() []*setting {
 			right: s.cycleRemotesFrom,
 		},
 		{
+			label: "Terms",
+			value: func() string {
+				switch {
+				case app.me == nil:
+					return "…"
+				case !app.me.TermsAccepted:
+					return "changed: read and accept them"
+				case app.me.TermsAcceptedAt != nil:
+					return "accepted " + app.me.TermsAcceptedAt.Local().Format("Jan 2, 2006")
+				}
+				return "accepted"
+			},
+			help:  "⏎ opens the terms and privacy policy, and accepts them when they changed",
+			enter: s.terms,
+		},
+		{
 			label: "Devices",
 			value: func() string { return "keys that sign in as you, like this one" },
 			help:  "⏎ lists them, to revoke one",
@@ -134,6 +150,30 @@ func (s *settingsView) toggleRemotePulls() {
 	s.saveMe(func(ctx context.Context) (*api.CurrentUser, error) {
 		return s.app.client.SetRemotePreferences(ctx, r.From, !r.PullReceipts)
 	}, "Saved whether you share how far you read.")
+}
+
+// terms opens the terms and privacy policy in the browser and, when the user hasn't accepted the ones in force,
+// asks them to.
+func (s *settingsView) terms() {
+	app := s.app
+	base := strings.TrimRight(app.client.BaseURL, "/")
+	if app.me == nil || app.me.TermsAccepted {
+		app.openURL(base+"/terms", true)
+		return
+	}
+
+	version := app.me.TermsVersion
+	app.choose(fmt.Sprintf("The terms and privacy policy changed. Read them at %s/terms and /privacy.", base),
+		[]string{"Open them", "I accept them", "Not now"}, func(label string) {
+			switch label {
+			case "Open them":
+				app.openURL(base+"/terms", true)
+				app.openURL(base+"/privacy", true)
+			case "I accept them":
+				s.saveMe(func(ctx context.Context) (*api.CurrentUser, error) { return app.client.AcceptTerms(ctx, version) },
+					"You accepted the terms and privacy policy.")
+			}
+		})
 }
 
 // loadSettings reads the settings only the user sees.

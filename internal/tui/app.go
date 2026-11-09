@@ -245,6 +245,9 @@ func (a *App) Run(ctx context.Context) error {
 		a.remotesUnread = a.me.Remotes.UnreadCount
 	}
 	a.switchTab(0)
+	if a.me.TermsVersion != "" && !a.me.TermsAccepted {
+		a.fail("The terms and privacy policy changed. g s → Terms to read and accept them.")
+	}
 	a.asideAt = time.Now()
 	a.refreshAside()
 

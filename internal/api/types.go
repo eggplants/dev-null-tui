@@ -5,7 +5,15 @@ import (
 	"time"
 )
 
+// Profile types: an "@handle" is a user's or an organization's.
+const (
+	ProfileUser         = "user"
+	ProfileOrganization = "organization"
+)
+
+// User is someone, or an organization where Type says so, as an author or in a list of people.
 type User struct {
+	Type           string    `json:"type"`
 	ID             string    `json:"id"`
 	Username       string    `json:"handle"`
 	Name           string    `json:"name"`

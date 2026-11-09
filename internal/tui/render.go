@@ -547,16 +547,41 @@ func replyPreviewLines(r *api.Commit, selected bool, color string, width int) []
 	return append(lines, prefixed(rest, truncateLines(body, 2))...)
 }
 
-var notificationVerbs = map[string]string{
-	"followed":  "followed you",
-	"replied":   "replied to your commit",
-	"mentioned": "mentioned you",
-	"quoted":    "quoted your commit",
-	"starred":   "starred your commit",
-	"approved":  "Your commit was approved",
-	"rejected":  "Your commit was rejected",
-	// The API doesn't say which level, unlike the web.
-	"leveled_up": "You reached a new level",
+// notificationVerb says what happened, as the web does, about the organization's commit when it's about one the user is
+// a member of.
+func notificationVerb(n *api.Notification) string {
+	whose, your := "your", "Your"
+	if o := n.Organization; o != nil && o.Username != "" {
+		whose = "@" + o.Username + "'s"
+		your = whose
+	}
+
+	switch n.Type {
+	case "followed":
+		return "followed you"
+	case "replied":
+		return "replied to " + whose + " commit"
+	case "quoted":
+		return "quoted " + whose + " commit"
+	case "starred":
+		return "starred " + whose + " commit"
+	case "mentioned":
+		if n.Organization != nil && n.Organization.Username != "" {
+			return "mentioned @" + n.Organization.Username
+		}
+		return "mentioned you"
+	case "first_commit":
+		return "made their first commit"
+	case "approved":
+		return your + " commit was approved"
+	case "rejected":
+		return your + " commit was rejected"
+	case "leveled_up":
+		// The API doesn't say which level, unlike the web.
+		return "You reached a new level"
+	}
+
+	return strings.ReplaceAll(n.Type, "_", " ")
 }
 
 // notificationIcons mark each kind of notification, colored as what they're about.
@@ -578,6 +603,8 @@ func notificationIcon(typ string) string {
 		return fmt.Sprintf("[%s]✕[-]", colorDanger)
 	case "leveled_up":
 		return fmt.Sprintf("[%s]▲[-]", colorWarning)
+	case "first_commit":
+		return fmt.Sprintf("[%s]◉[-]", colorPrimary)
 	}
 
 	return fmt.Sprintf("[%s]•[-]", colorMuted)
@@ -608,10 +635,7 @@ func notificationLines(n *api.Notification, selected bool, width int) []string {
 		rest += avatarRoom
 	}
 
-	verb := notificationVerbs[n.Type]
-	if verb == "" {
-		verb = n.Type
-	}
+	verb := tview.Escape(notificationVerb(n))
 
 	var head string
 	switch n.Type {

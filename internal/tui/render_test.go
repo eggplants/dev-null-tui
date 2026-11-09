@@ -276,3 +276,24 @@ func TestCommitLinesFitTheWidth(t *testing.T) {
 func stripTags(s string) string {
 	return styleTag.ReplaceAllString(s, "")
 }
+
+func TestWordsNotificationsAsTheWebDoes(t *testing.T) {
+	ada := &api.User{Username: "ada", Name: "Ada"}
+	acme := &api.User{Type: api.ProfileOrganization, Username: "acme"}
+	for _, tc := range []struct {
+		n    api.Notification
+		want string
+	}{
+		{api.Notification{Type: "first_commit", Actor: ada, ActorsCount: 1}, "Ada made their first commit"},
+		{api.Notification{Type: "replied", Actor: ada, ActorsCount: 1}, "Ada replied to your commit"},
+		{api.Notification{Type: "replied", Actor: ada, ActorsCount: 1, Organization: acme}, "Ada replied to @acme's commit"},
+		{api.Notification{Type: "mentioned", Actor: ada, ActorsCount: 1, Organization: acme}, "Ada mentioned @acme"},
+		{api.Notification{Type: "approved", Organization: acme}, "@acme's commit was approved"},
+		{api.Notification{Type: "something_new", Actor: ada, ActorsCount: 1}, "Ada something new"},
+	} {
+		got := stripTags(strings.Join(notificationLines(&tc.n, false, 80), "\n"))
+		if !strings.Contains(got, tc.want) {
+			t.Errorf("%s: %q doesn't say %q", tc.n.Type, got, tc.want)
+		}
+	}
+}

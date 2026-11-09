@@ -130,6 +130,9 @@ type Notification struct {
 	ActorsCount int        `json:"actors_count"`
 	UnreadCount int        `json:"unread_count"`
 	Commit      *Commit    `json:"commit"`
+	// Organization is the organization the notification is about, as a member hears about its commits and mentions
+	// as its own.
+	Organization *User `json:"organization"`
 }
 
 // Page is one page of a cursor-paginated list. NextCursor is empty on the last page.

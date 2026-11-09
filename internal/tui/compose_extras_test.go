@@ -218,3 +218,34 @@ func TestPreviewsAsTheServerWouldKeepIt(t *testing.T) {
 	h.waitFor("🎉")
 	h.waitFor("shipped")
 }
+
+func TestPostsAsAnOrganization(t *testing.T) {
+	f := &fakeAPI{}
+	h := start(t, f)
+	h.waitFor("abc1234")
+
+	h.typeText("c")
+	h.waitFor("New commit")
+	h.typeText("we shipped")
+	h.screen.InjectKey(tcell.KeyRune, 'a', tcell.ModAlt)
+	h.waitFor("Post as")
+	h.typeText("@acme")
+	h.key(tcell.KeyEnter)
+	h.waitFor("New commit · as @acme")
+	h.key(tcell.KeyCtrlS)
+	h.waitFor("[log 9999999] we shipped · as @acme")
+
+	// The organization posted as comes first next time.
+	h.typeText("c")
+	h.waitFor("New commit")
+	h.screen.InjectKey(tcell.KeyRune, 'a', tcell.ModAlt)
+	h.waitFor("Post as")
+	h.key(tcell.KeyDown)
+	h.waitFor("@acme")
+
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if len(f.drafts) != 1 || f.drafts[0].Author != "acme" {
+		t.Errorf("sent %+v", f.drafts)
+	}
+}

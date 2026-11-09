@@ -114,6 +114,9 @@ type App struct {
 	// asideAt is when the aside last asked for them.
 	asideAt time.Time
 
+	// postedAs are the organizations the user posted as lately, newest first.
+	postedAs []string
+
 	// lastDeleted is the commit the user deleted last, which U brings back for a while.
 	lastDeleted *deleted
 	// language is the language the user has commits translated into, once asked for.
@@ -1182,6 +1185,7 @@ func helpText() string {
 		row("^s ^⏎", "commit", "esc", "cancel, keeping a draft")+
 		row("^o", "attach an image", "^r", "remove the last one")+
 		row("^g", "describe an image", "^n", "who a reply goes to")+
+		row("M-a", "post as an org", "", "")+
 		row("^e", "write in $EDITOR", "^p", "preview")+
 		row("^l", "ask a poll", "^t", "commit it later")+
 		row("tab", "complete @mention", "", ""), "\n")

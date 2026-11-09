@@ -21,6 +21,8 @@ type commitExtras struct {
 	// they're excluded, as the web's Replying to has them.
 	participants []api.Participant
 	excluded     map[string]bool
+	// author is the handle of the organization the commit is posted as, or empty for the user.
+	author string
 }
 
 // recipients are the ids of the participants a reply goes to.
@@ -228,6 +230,7 @@ func (a *App) schedule(draft api.NewCommit, at time.Time, images []attachment, f
 
 		sent()
 		a.closeModal("compose")
+		a.rememberAuthor(draft.Author)
 		a.succeed("Scheduled for %s. g q lists your queue.", at.Local().Format("Mon Jan 2 15:04"))
 		a.views(func(v view) {
 			if q, ok := v.(*scheduledView); ok {
@@ -235,4 +238,72 @@ func (a *App) schedule(draft api.NewCommit, at time.Time, images []attachment, f
 			}
 		})
 	})
+}
+
+// askAuthor asks which organization to post as, by its handle, completing it from the organizations the search finds
+// and those posted as before. done runs with the handle, or "" to post as the user. Only the server knows which
+// organizations the user is a member of, so it is the one that says no to the others.
+func (a *App) askAuthor(current string, done func(handle string)) {
+	asked := map[string][]string{}
+	var input *lineInput
+	input = a.askLine("Post as", "an organization's @handle; empty posts as you", current, func(text string) []string {
+		q := strings.ToLower(strings.TrimPrefix(strings.TrimSpace(text), "@"))
+		if q == "" {
+			entries := make([]string, len(a.postedAs))
+			for i, h := range a.postedAs {
+				entries[i] = "@" + h
+			}
+			return entries
+		}
+		if entries, ok := asked[q]; ok {
+			return entries
+		}
+		time.AfterFunc(mentionDelay, func() {
+			a.tv.QueueUpdate(func() {
+				if current := strings.ToLower(strings.TrimPrefix(strings.TrimSpace(input.field.GetText()), "@")); current != q {
+					return
+				}
+				var orgs []api.User
+				a.async(func(ctx context.Context) (err error) {
+					_, orgs, err = a.client.SearchProfiles(ctx, q)
+					return err
+				}, func(err error) {
+					if err != nil {
+						return
+					}
+					var entries []string
+					for _, h := range a.postedAs {
+						if strings.HasPrefix(h, q) {
+							entries = append(entries, "@"+h)
+						}
+					}
+					for _, o := range orgs {
+						if !contains(entries, "@"+o.Username) {
+							entries = append(entries, "@"+o.Username)
+						}
+					}
+					asked[q] = entries[:min(len(entries), 8)]
+					input.field.Autocomplete()
+				})
+			})
+		})
+		return nil
+	})
+	input.done = func(text string) {
+		done(strings.TrimPrefix(strings.TrimSpace(text), "@"))
+	}
+}
+
+// rememberAuthor keeps an organization the user posted as on top of the ones Alt+a offers.
+func (a *App) rememberAuthor(handle string) {
+	if handle == "" {
+		return
+	}
+	kept := []string{handle}
+	for _, h := range a.postedAs {
+		if h != handle {
+			kept = append(kept, h)
+		}
+	}
+	a.postedAs = kept[:min(len(kept), 5)]
 }

@@ -100,6 +100,13 @@ func (a *App) compose(opts composeOptions) {
 	}
 	form.AddItem(area, 0, 1, true).AddItem(preview, 0, 0, false).AddItem(attached, 0, 0, false).AddItem(completions, 1, 0, false).AddItem(counter, 1, 0, false)
 	form.SetBorder(true).SetTitle(title).SetBackgroundColor(tcell.GetColor(theme.popover))
+	showTitle := func() {
+		if extras.author == "" {
+			form.SetTitle(title)
+			return
+		}
+		form.SetTitle(strings.TrimSuffix(title, " ") + " · as @" + tview.Escape(extras.author) + " ")
+	}
 	area.SetBackgroundColor(tcell.GetColor(theme.popover))
 
 	showingPreview := false
@@ -321,6 +328,14 @@ func (a *App) compose(opts composeOptions) {
 		// Ctrl+Enter commits as on the web, in the terminals that tell it from Enter.
 		if event.Key() == tcell.KeyEnter && event.Modifiers()&(tcell.ModCtrl|tcell.ModMeta) != 0 {
 			event = tcell.NewEventKey(tcell.KeyCtrlS, 0, tcell.ModCtrl)
+		}
+		// Alt+a picks who the commit is by: the user, or an organization they are a member of.
+		if event.Key() == tcell.KeyRune && event.Rune() == 'a' && event.Modifiers()&tcell.ModAlt != 0 {
+			a.askAuthor(extras.author, func(handle string) {
+				extras.author = handle
+				showTitle()
+			})
+			return nil
 		}
 
 		switch event.Key() {
@@ -771,6 +786,7 @@ func (a *App) submit(body string, opts composeOptions, images []attachment, extr
 	}
 	draft.Poll = extras.poll
 	draft.ImageDescriptions = descriptions(images)
+	draft.Author = extras.author
 	if opts.parent != nil {
 		draft.ReplyRecipients = extras.recipients()
 	}
@@ -812,7 +828,11 @@ func (a *App) submit(body string, opts composeOptions, images []attachment, extr
 
 		sent()
 		a.closeModal("compose")
+		a.rememberAuthor(draft.Author)
 		summary := tview.Escape(firstLine(body, 40))
+		if draft.Author != "" {
+			summary += " · as @" + tview.Escape(draft.Author)
+		}
 		if created.Status == "pending" {
 			a.pendingReview[created.ID] = created
 			a.succeed("[log %s] %s · pending review, so only you see it until it's approved.", created.ShortHash, summary)

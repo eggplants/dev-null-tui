@@ -154,6 +154,7 @@ In the composer:
 | `^r` | Drop the last image |
 | `^g` | Describe an image (its alt text) |
 | `^n` | Choose who else a reply goes to, of the people its commit was addressed to (all of them, unless you take some off) |
+| `Alt+a` | Post as an organization you are a member of, by its `@handle` (empty posts as you) |
 | `^l` | Ask a poll with a new commit |
 | `^t` | Commit it later: `+2h`, `18:30`, `tomorrow 9:00` or `2026-11-12 09:00` |
 

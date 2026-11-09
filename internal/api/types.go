@@ -97,6 +97,9 @@ type Commit struct {
 	QuotedCommitID  *string       `json:"quoted_commit_id"`
 	QuotedCommit    *Commit       `json:"quoted_commit"`
 	ReplyPreview    *Page[Commit] `json:"reply_preview"`
+
+	// Translation is the body in the user's language, once they ask for it, shown in place of the body.
+	Translation *Translation `json:"-"`
 }
 
 type Notification struct {

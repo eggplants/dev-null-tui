@@ -107,6 +107,11 @@ type App struct {
 	// protocol is how the terminal draws images, for the settings to say.
 	protocol graphicsProtocol
 
+	// suggested are who to follow and liveNow who the user follows is live, for the aside.
+	suggested, liveNow []api.User
+	// asideAt is when the aside last asked for them.
+	asideAt time.Time
+
 	// lastDeleted is the commit the user deleted last, which U brings back for a while.
 	lastDeleted *deleted
 	// language is the language the user has commits translated into, once asked for.
@@ -231,6 +236,8 @@ func (a *App) Run(ctx context.Context) error {
 		{name: "Profile", short: "Me", stack: []view{newProfile(a, a.me.Username)}},
 	}
 	a.switchTab(0)
+	a.asideAt = time.Now()
+	a.refreshAside()
 
 	go a.poll(ctx, a.opts.PollInterval)
 
@@ -410,7 +417,9 @@ func (a *App) drawAside(screen tcell.Screen, x, y, width, height int) {
 	if a.unread > 0 {
 		lines = append(lines, fmt.Sprintf("     [%s]●[-] [%s]%d unread notification%s[-]", colorPrimary, colorMuted, a.unread, plural(a.unread)))
 	}
-	lines = append(lines, "", rule, "", fmt.Sprintf("[%s::b]Keys[-::-]", colorInk))
+	lines = append(lines, "", rule, "")
+	lines = append(lines, a.asideDiscoverLines(width)...)
+	lines = append(lines, fmt.Sprintf("[%s::b]Keys[-::-]", colorInk))
 	for _, h := range append(a.top().Hints(), hint{"c", "new commit"}, hint{"/", "go to"}, hint{"g", "go places"}, hint{"?", "all keys"}) {
 		lines = append(lines, fmt.Sprintf(" [%s::b]%-6s[-::-] [%s]%s[-]", colorInk, tview.Escape(h.key), colorMuted, h.label))
 	}
@@ -829,6 +838,10 @@ func (a *App) poll(ctx context.Context, interval time.Duration) {
 		}
 
 		a.tv.QueueUpdate(func() {
+			if time.Since(a.asideAt) >= asideEvery {
+				a.asideAt = time.Now()
+				a.refreshAside()
+			}
 			for _, t := range a.tabs {
 				if f, ok := t.stack[0].(*commitFeed); ok {
 					f.checkNewCommits()
@@ -1081,6 +1094,8 @@ func (a *App) goTo(r rune) {
 		a.push(newSettings(a))
 	case r == 'q':
 		a.push(newScheduled(a))
+	case r == 'w':
+		a.push(newWhoToFollow(a))
 	case tabs[r] != "":
 		a.switchTab(a.tabIndex(tabs[r]))
 	}
@@ -1119,7 +1134,7 @@ func helpText() string {
 		row("⏎ l", "open the thread", "esc h ⌫", "back")+
 		row("g l/a/e", "following/latest/hot", "g n/b/p", "notifs/starred/me")+
 		row("g s", "settings", "/ ^k", "search, or go to @user")+
-		row("g q", "scheduled commits", "", "")+
+		row("g q", "scheduled commits", "g w", "who to follow")+
 		row("Q ^c", "quit", "esc", "quit, at a tab's top")+
 		"\n"+section("Commits")+
 		row("c", "new commit", "R", "refresh")+

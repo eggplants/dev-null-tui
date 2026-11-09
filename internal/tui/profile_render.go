@@ -320,8 +320,15 @@ func personLines(u *api.User, selected bool, width int) []string {
 		pills = append(pills, pill("✓ following", colorPrimary))
 	}
 
+	if u.Live != nil {
+		pills = append([]string{pill("● live", colorDanger)}, pills...)
+	}
+
 	head := bar + avatarRoom + authorName(u)
 	lines := []string{spread(head, strings.Join(pills, " "), width)}
+	if n := u.FollowedByFollowingCount; n != nil && *n > 0 {
+		lines = append(lines, bar+avatarRoom+fmt.Sprintf("[%s]followed by %d %s you follow[-]", colorMuted, *n, map[bool]string{true: "person", false: "people"}[*n == 1]))
+	}
 	if u.Bio != "" {
 		lines = append(lines, truncateLines(wrap(fmt.Sprintf("[%s]%s[-]", colorMuted, tview.Escape(u.Bio)), bar+avatarRoom, width), 2)...)
 	}

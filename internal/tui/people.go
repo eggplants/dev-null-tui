@@ -19,6 +19,18 @@ type peopleList struct {
 	extraHints func() []hint
 	// undo, when set, takes the selected person off the list, as unmuting does in the list of who the user mutes.
 	undo *peopleAction
+	// alsoFollow lets f follow people on a list with undo set, as on who to follow.
+	alsoFollow bool
+	// reload, when set, runs on R in place of loading the list again.
+	reload func()
+}
+
+func (l *peopleList) Reload() {
+	if l.reload != nil {
+		l.reload()
+		return
+	}
+	l.pager.Reload()
 }
 
 // peopleAction is something done to the selected person that takes them off the list.
@@ -53,7 +65,8 @@ func (l *peopleList) Hints() []hint {
 		hints = append(hints, hint{"⏎", "profile"})
 		if l.undo != nil {
 			hints = append(hints, hint{string(l.undo.key), l.undo.label})
-		} else if l.app.me == nil || u.ID != l.app.me.ID {
+		}
+		if (l.undo == nil || l.alsoFollow) && (l.app.me == nil || u.ID != l.app.me.ID) {
 			if u.IsFollowed != nil && *u.IsFollowed {
 				hints = append(hints, hint{"f", "unfollow"})
 			} else {
@@ -87,7 +100,7 @@ func (l *peopleList) InputHandler() func(event *tcell.EventKey, setFocus func(p 
 		case l.undo != nil && event.Key() == tcell.KeyRune && event.Rune() == l.undo.key:
 			l.takeOff(u)
 			return
-		case l.undo == nil && event.Key() == tcell.KeyRune && event.Rune() == 'f':
+		case (l.undo == nil || l.alsoFollow) && event.Key() == tcell.KeyRune && event.Rune() == 'f':
 			l.follow(u)
 			return
 		}

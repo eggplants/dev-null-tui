@@ -99,6 +99,7 @@ them.
 | `g` then `l` `e` `p` `s` | Your log (Following), Trending, Profile, Settings, as on the web |
 | `g` then `a` `n` `b` | Latest, Notifications, Starred |
 | `g` then `q` | Your scheduled commits: `⏎` commits one now, `D` cancels it |
+| `g` then `w` | Who to follow: `f` follows, `x` says not interested, `R` suggests others |
 | `/` `^k` | Search commits and people, or go to an `@username`, a profile's or commit's link, or a hash on screen |
 | `⏎` `l` (or click it again) | Open the thread; on the open commit, reply |
 | `Esc` `h` `⌫` | Back; `Esc` at a tab's top quits |

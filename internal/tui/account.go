@@ -65,12 +65,75 @@ func (s *settingsView) accountSettings() []*setting {
 			enter: s.toggleLive,
 		},
 		{
+			label: "Remotes",
+			value: func() string {
+				if app.me == nil || app.me.Remotes == nil {
+					return "off: nobody can message you"
+				}
+				r := app.me.Remotes
+				who := "people you follow"
+				if r.From == "everyone" {
+					who = "everyone"
+				}
+				pulls := "you share how far you read"
+				if !r.PullReceipts {
+					pulls = "you don't share how far you read"
+				}
+				return fmt.Sprintf("on: %s can push to you, %s", who, pulls)
+			},
+			help:  "⏎ turns them on or off, ← → who can push to you, # whether they see how far you read",
+			enter: s.toggleRemotes,
+			left:  s.cycleRemotesFrom,
+			right: s.cycleRemotesFrom,
+		},
+		{
 			label: "Devices",
 			value: func() string { return "keys that sign in as you, like this one" },
 			help:  "⏎ lists them, to revoke one",
 			enter: func() { app.push(newDevices(app)) },
 		},
 	}
+}
+
+func (s *settingsView) toggleRemotes() {
+	on := s.app.me == nil || s.app.me.Remotes == nil
+	done := "Remotes are off: nobody can message you."
+	if on {
+		done = "Remotes are on."
+	}
+	s.saveMe(func(ctx context.Context) (*api.CurrentUser, error) { return s.app.client.SetRemotes(ctx, on) }, done)
+}
+
+// cycleRemotesFrom switches who can push to the user, between the people they follow and everyone, where the server
+// lets everyone.
+func (s *settingsView) cycleRemotesFrom() {
+	r := s.app.me.Remotes
+	switch {
+	case r == nil:
+		s.app.flash("Turn Remotes on first.")
+	case !r.Everyone:
+		s.app.flash("Only the people you follow can push to you on %s.", s.app.client.BaseURL)
+	default:
+		from := "everyone"
+		if r.From == "everyone" {
+			from = "following"
+		}
+		s.saveMe(func(ctx context.Context) (*api.CurrentUser, error) {
+			return s.app.client.SetRemotePreferences(ctx, from, r.PullReceipts)
+		}, "Saved who can push to you.")
+	}
+}
+
+// toggleRemotePulls switches whether the people the user pushes to see how far they read.
+func (s *settingsView) toggleRemotePulls() {
+	r := s.app.me.Remotes
+	if r == nil {
+		s.app.flash("Turn Remotes on first.")
+		return
+	}
+	s.saveMe(func(ctx context.Context) (*api.CurrentUser, error) {
+		return s.app.client.SetRemotePreferences(ctx, r.From, !r.PullReceipts)
+	}, "Saved whether you share how far you read.")
 }
 
 // loadSettings reads the settings only the user sees.

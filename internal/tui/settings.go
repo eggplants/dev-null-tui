@@ -131,8 +131,11 @@ func (s *settingsView) Hints() []hint {
 		if item.enter != nil {
 			hints = append(hints, hint{"⏎", "change"})
 		}
-		if item.label == "Color" {
+		switch item.label {
+		case "Color":
 			hints = append(hints, hint{"#", "own color"})
+		case "Remotes":
+			hints = append(hints, hint{"#", "share pulls"})
 		}
 	}
 
@@ -375,6 +378,9 @@ func (s *settingsView) InputHandler() func(event *tcell.EventKey, setFocus func(
 			return
 		case event.Key() == tcell.KeyRight && item.right != nil:
 			item.right()
+			return
+		case event.Key() == tcell.KeyRune && event.Rune() == '#' && item.label == "Remotes":
+			s.toggleRemotePulls()
 			return
 		case event.Key() == tcell.KeyRune && event.Rune() == '#':
 			s.askColor()

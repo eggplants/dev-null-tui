@@ -17,6 +17,7 @@ type accountAPI struct {
 	automatic bool
 	timezone  string
 	revoked   []string
+	remotes   bool
 }
 
 func (f *accountAPI) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -28,6 +29,11 @@ func (f *accountAPI) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	switch r.Method + " " + r.URL.Path {
 	case "GET /api/v1/me":
 		out = me
+	case "PUT /api/v1/me/remotes":
+		var in map[string]bool
+		_ = json.NewDecoder(r.Body).Decode(&in)
+		f.remotes = in["enabled"]
+		out = map[string]any{"data": map[string]any{"id": "u0", "handle": "me", "name": "Me", "lane": 1, "remotes": map[string]any{"from": "following", "pull_receipts": true}}}
 	case "GET /api/v1/me/settings":
 		out = map[string]any{"data": map[string]any{
 			"timezone": f.timezone, "translation_language": f.language, "automatic_translation": f.automatic,
@@ -150,7 +156,7 @@ func TestRevokesADevice(t *testing.T) {
 	h := start(t, f)
 	h.waitFor("Following")
 
-	h.openSetting("Devices", 11)
+	h.openSetting("Devices", 12)
 	h.waitFor("lists them, to revoke one")
 	h.key(tcell.KeyEnter)
 	h.waitFor("an old laptop")
@@ -167,5 +173,23 @@ func TestRevokesADevice(t *testing.T) {
 	defer f.mu.Unlock()
 	if len(f.revoked) != 1 {
 		t.Errorf("revoked %v", f.revoked)
+	}
+}
+
+func TestTurnsRemotesOn(t *testing.T) {
+	f := &accountAPI{}
+	h := start(t, f)
+	h.waitFor("Following")
+
+	h.openSetting("Remotes", 11)
+	h.waitFor("off: nobody can message you")
+	h.key(tcell.KeyEnter)
+	h.waitFor("Remotes are on.")
+	h.waitFor("on: people you follow can push to you")
+
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if !f.remotes {
+		t.Error("didn't turn them on")
 	}
 }

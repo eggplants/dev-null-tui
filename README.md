@@ -156,7 +156,7 @@ In the composer:
 ### Settings
 
 `g s` in the TUI picks your color, turns pastéis mode on or off, picks the language `t` translates into and whether
-commits are translated by themselves, sets your timezone, says you're live on your stream, takes your profile from
+commits are translated by themselves, sets your timezone, says you're live on your stream, turns Remotes on or off and says who can push to you, takes your profile from
 GitHub again, lists who you mute and block, and lists the devices that sign in as you, to revoke one. The theme follows the terminal's background unless you pick one.
 
 It also switches the settings below, which take effect at once (`graphics` from the next start) and are kept in

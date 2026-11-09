@@ -297,7 +297,28 @@ type NewCommit struct {
 	QuotedCommitID string `json:"quoted_commit_id,omitempty"`
 	// ImageDescriptions are the images' alt texts, in their order, "" for none.
 	ImageDescriptions []string `json:"image_descriptions,omitempty"`
+	// Poll asks a question with the commit. It can't go with images, on a reply or on a quote.
+	Poll *NewPoll `json:"poll,omitempty"`
 }
+
+// NewPoll is a poll to ask with a commit: 2 to 4 options of up to 50 characters, open for one of PollDurations.
+type NewPoll struct {
+	Options  []string `json:"options"`
+	Duration int      `json:"duration"`
+}
+
+// Poll limits, as the web has them.
+const (
+	MinPollOptions      = 2
+	MaxPollOptions      = 4
+	MaxPollOptionLength = 50
+)
+
+// PollDurations are how long a poll can stay open, in minutes, with the words the web gives them.
+var PollDurations = []struct {
+	Minutes int
+	Label   string
+}{{60, "1 hour"}, {1440, "1 day"}, {4320, "3 days"}, {10080, "7 days"}}
 
 func (c *Client) CreateCommit(ctx context.Context, commit NewCommit) (*Commit, error) {
 	var res data[Commit]

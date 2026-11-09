@@ -301,6 +301,8 @@ type NewCommit struct {
 	ImageDescriptions []string `json:"image_descriptions,omitempty"`
 	// Poll asks a question with the commit. It can't go with images, on a reply or on a quote.
 	Poll *NewPoll `json:"poll,omitempty"`
+	// ReplyRecipients are the ids of the people the parent was addressed to that a reply goes to as well.
+	ReplyRecipients []string `json:"reply_recipients,omitempty"`
 }
 
 // NewPoll is a poll to ask with a commit: 2 to 4 options of up to 50 characters, open for one of PollDurations.

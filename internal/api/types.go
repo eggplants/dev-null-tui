@@ -188,21 +188,30 @@ func (p *LogPage) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
-// Thread is a commit as its page shows it, with the commits it replies to, oldest first.
+// Thread is a commit as its page shows it, with the commits it replies to, oldest first, and the people besides its
+// author a reply to it can go to.
 type Thread struct {
-	Commit    Commit
-	Ancestors []Commit
+	Commit            Commit
+	Ancestors         []Commit
+	ReplyParticipants []Participant
+}
+
+// Participant is someone a commit was addressed to.
+type Participant struct {
+	ID     string `json:"id"`
+	Handle string `json:"handle"`
 }
 
 func (t *Thread) UnmarshalJSON(data []byte) error {
 	var raw struct {
-		Data      Commit   `json:"data"`
-		Ancestors []Commit `json:"ancestors"`
+		Data              Commit        `json:"data"`
+		Ancestors         []Commit      `json:"ancestors"`
+		ReplyParticipants []Participant `json:"reply_participants"`
 	}
 	if err := json.Unmarshal(data, &raw); err != nil {
 		return err
 	}
-	t.Commit, t.Ancestors = raw.Data, raw.Ancestors
+	t.Commit, t.Ancestors, t.ReplyParticipants = raw.Data, raw.Ancestors, raw.ReplyParticipants
 
 	return nil
 }

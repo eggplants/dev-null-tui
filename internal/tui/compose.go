@@ -77,6 +77,12 @@ func (a *App) compose(opts composeOptions) {
 	}
 
 	form := tview.NewFlex().SetDirection(tview.FlexRow)
+	var replying *tview.TextView
+	showRecipients := func() {
+		if replying != nil && opts.parent != nil {
+			replying.SetText(fmt.Sprintf(" [%s]│[-] [%s]%s[-]", laneColor(about.Author), colorMuted, tview.Escape(extras.replyingTo(authorUsername(about)))))
+		}
+	}
 	if about != nil {
 		quoted := tview.NewTextView().SetDynamicColors(true).SetWrap(false)
 		quoted.SetBackgroundColor(tcell.GetColor(theme.popover))
@@ -88,7 +94,7 @@ func (a *App) compose(opts composeOptions) {
 		if opts.quoted != nil {
 			label = "quoting"
 		}
-		replying := tview.NewTextView().SetDynamicColors(true).SetText(fmt.Sprintf(" [%s]│[-] [%s]↳ %s @%s[-]", laneColor(about.Author), colorMuted, label, authorUsername(about)))
+		replying = tview.NewTextView().SetDynamicColors(true).SetText(fmt.Sprintf(" [%s]│[-] [%s]↳ %s @%s[-]", laneColor(about.Author), colorMuted, label, authorUsername(about)))
 		replying.SetBackgroundColor(tcell.GetColor(theme.popover))
 		form.AddItem(replying, 1, 0, false)
 	}
@@ -227,6 +233,26 @@ func (a *App) compose(opts composeOptions) {
 	area.SetMovedFunc(updateCounter)
 	updateCounter()
 
+	// A reply goes to the people its parent was addressed to as well, as on the web, once the parent says who.
+	if opts.parent != nil {
+		parent := opts.parent.ID
+		var thread *api.Thread
+		a.async(func(ctx context.Context) (err error) {
+			thread, err = a.client.Commit(ctx, parent)
+			return err
+		}, func(err error) {
+			if err != nil {
+				return
+			}
+			for _, p := range thread.ReplyParticipants {
+				if a.me == nil || p.ID != a.me.ID {
+					extras.participants = append(extras.participants, p)
+				}
+			}
+			showRecipients()
+		})
+	}
+
 	attach := func(img attachment) {
 		images = append(images, img)
 		updateCounter()
@@ -337,6 +363,13 @@ func (a *App) compose(opts composeOptions) {
 					updateCounter()
 				}
 			})
+			return nil
+		case tcell.KeyCtrlN:
+			if len(extras.participants) == 0 {
+				a.flash("Only a reply to a commit addressed to others can go to them too.")
+				return nil
+			}
+			a.chooseRecipients(&extras, showRecipients)
 			return nil
 		case tcell.KeyCtrlL:
 			switch {
@@ -703,6 +736,9 @@ func (a *App) submit(body string, opts composeOptions, images []attachment, extr
 	}
 	draft.Poll = extras.poll
 	draft.ImageDescriptions = descriptions(images)
+	if opts.parent != nil {
+		draft.ReplyRecipients = extras.recipients()
+	}
 	if extras.at != nil {
 		if !extras.at.After(now()) {
 			a.fail("That time has passed. ^t picks another.")

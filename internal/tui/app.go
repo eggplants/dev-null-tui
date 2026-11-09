@@ -1180,7 +1180,7 @@ func helpText() string {
 		"\n"+section("Composer")+
 		row("^s ^⏎", "commit", "esc", "cancel, keeping a draft")+
 		row("^o", "attach an image", "^r", "remove the last one")+
-		row("^g", "describe an image", "", "")+
+		row("^g", "describe an image", "^n", "who a reply goes to")+
 		row("^e", "write in $EDITOR", "^p", "preview")+
 		row("^l", "ask a poll", "^t", "commit it later")+
 		row("tab", "complete @mention", "", ""), "\n")

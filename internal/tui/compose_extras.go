@@ -17,6 +17,66 @@ import (
 type commitExtras struct {
 	poll *api.NewPoll
 	at   *time.Time
+	// participants are the people besides its author the parent was addressed to, whom a reply goes to as well unless
+	// they're excluded, as the web's Replying to has them.
+	participants []api.Participant
+	excluded     map[string]bool
+}
+
+// recipients are the ids of the participants a reply goes to.
+func (e commitExtras) recipients() []string {
+	var ids []string
+	for _, p := range e.participants {
+		if !e.excluded[p.ID] {
+			ids = append(ids, p.ID)
+		}
+	}
+
+	return ids
+}
+
+// replyingTo says whom a reply goes to: the parent's author and the participants it includes.
+func (e commitExtras) replyingTo(author string) string {
+	names := []string{"@" + author}
+	for _, p := range e.participants {
+		if !e.excluded[p.ID] {
+			names = append(names, "@"+p.Handle)
+		}
+	}
+	text := "↳ replying to " + strings.Join(names, " ")
+	if len(e.participants) > 0 {
+		text += " · ^n choose"
+	}
+
+	return text
+}
+
+// chooseRecipients asks which of the participants a reply goes to, one toggle at a time, until Done.
+func (a *App) chooseRecipients(e *commitExtras, done func()) {
+	labels := make([]string, 0, len(e.participants)+1)
+	for _, p := range e.participants {
+		mark := "✓"
+		if e.excluded[p.ID] {
+			mark = "·"
+		}
+		labels = append(labels, mark+" @"+p.Handle)
+	}
+	labels = append(labels, "Done")
+
+	a.choose("Who else does the reply go to?", labels, func(label string) {
+		for i, p := range e.participants {
+			if labels[i] == label {
+				if e.excluded == nil {
+					e.excluded = map[string]bool{}
+				}
+				e.excluded[p.ID] = !e.excluded[p.ID]
+				done()
+				a.chooseRecipients(e, done)
+				return
+			}
+		}
+		done()
+	})
 }
 
 // lines say what the commit carries, under its images in the composer.

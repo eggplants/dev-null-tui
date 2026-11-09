@@ -82,7 +82,9 @@ func (f *fakeAPI) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	case "GET /api/v1/log/following":
 		out = map[string]any{"data": []any{commit()}, "meta": map[string]any{"next_cursor": nil}}
 	case "GET /api/v1/commits/c1":
-		out = map[string]any{"data": commit(), "ancestors": []any{}}
+		out = map[string]any{"data": commit(), "ancestors": []any{}, "reply_participants": []any{
+			map[string]any{"id": "u5", "handle": "bob"}, map[string]any{"id": "u0", "handle": "me"},
+		}}
 	case "GET /api/v1/commits/c1/replies":
 		out = map[string]any{"data": []any{reply}, "meta": map[string]any{"next_cursor": nil}}
 	case "POST /api/v1/commits/c1/star":

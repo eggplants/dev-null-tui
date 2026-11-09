@@ -3,6 +3,7 @@ package tui
 import (
 	"encoding/json"
 	"net/http"
+	"slices"
 	"sync"
 	"testing"
 	"time"
@@ -169,5 +170,39 @@ func TestCancelsAndCommitsScheduledCommits(t *testing.T) {
 	defer f.mu.Unlock()
 	if len(f.canceled) != 1 || len(f.submitted) != 1 {
 		t.Errorf("canceled %v, submitted %v", f.canceled, f.submitted)
+	}
+}
+
+func TestRepliesToWhomTheParentWasAddressed(t *testing.T) {
+	f := &fakeAPI{}
+	h := start(t, f)
+	h.waitFor("abc1234")
+
+	h.typeText("r")
+	h.waitFor("replying to @alice @bob · ^n choose")
+	h.typeText("first")
+	h.key(tcell.KeyCtrlS)
+	h.waitFor("[log 9999999] first")
+
+	h.typeText("r")
+	h.waitFor("replying to @alice @bob")
+	h.key(tcell.KeyCtrlN)
+	h.waitFor("Who else does the reply")
+	h.key(tcell.KeyEnter)
+	h.waitFor("· @bob")
+	h.key(tcell.KeyRight)
+	h.key(tcell.KeyEnter)
+	h.waitFor("replying to @alice · ^n choose")
+	h.typeText("second")
+	h.key(tcell.KeyCtrlS)
+	h.waitFor("[log 9999999] second")
+
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if len(f.drafts) != 2 {
+		t.Fatalf("sent %+v", f.drafts)
+	}
+	if !slices.Equal(f.drafts[0].ReplyRecipients, []string{"u5"}) || len(f.drafts[1].ReplyRecipients) != 0 {
+		t.Errorf("sent to %v, then %v", f.drafts[0].ReplyRecipients, f.drafts[1].ReplyRecipients)
 	}
 }

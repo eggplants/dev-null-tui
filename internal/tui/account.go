@@ -292,7 +292,8 @@ func (s *settingsView) toggleLive() {
 
 // lineInput is a one-line question in a dialog; done runs with the answer on Enter.
 type lineInput struct {
-	done func(text string)
+	done  func(text string)
+	field *tview.InputField
 }
 
 // askLine asks a one-line question, completing the answer with complete if it is set.
@@ -327,6 +328,7 @@ func (a *App) askLine(title, placeholder, initial string, complete func(text str
 		a.closeModal("line")
 	})
 
+	answer.field = input
 	_, _, width, _ := a.root.GetRect()
 	a.openModal("line", centered(input, min(70, width), 3))
 

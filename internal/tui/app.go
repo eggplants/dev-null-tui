@@ -86,6 +86,8 @@ type App struct {
 	tabs    []*tab
 	current int
 	unread  int
+	// remotesUnread is how many conversations have messages the user hasn't read.
+	remotesUnread int
 	// tabSpans are where each tab's label was drawn in the header, for clicks.
 	tabSpans [][2]int
 
@@ -234,6 +236,10 @@ func (a *App) Run(ctx context.Context) error {
 		{name: "Notifications", short: "Ntf", stack: []view{newNotifications(a)}},
 		{name: "Starred", short: "Star", stack: []view{newStarredFeed(a)}},
 		{name: "Profile", short: "Me", stack: []view{newProfile(a, a.me.Username)}},
+		{name: "Remotes", short: "Rmt", stack: []view{newInbox(a)}},
+	}
+	if a.me.Remotes != nil {
+		a.remotesUnread = a.me.Remotes.UnreadCount
 	}
 	a.switchTab(0)
 	a.asideAt = time.Now()
@@ -473,6 +479,9 @@ func (a *App) drawHeaderBox(screen tcell.Screen, x, y, width, height int) (int, 
 			}
 			if t.name == "Notifications" && a.unread > 0 {
 				label += fmt.Sprintf("[%s:%s:b]%d[-:-:-]", badgeFg, badgeBg, a.unread)
+			}
+			if t.name == "Remotes" && a.remotesUnread > 0 {
+				label += fmt.Sprintf("[%s:%s:b]%d[-:-:-]", badgeFg, badgeBg, a.remotesUnread)
 			}
 			if f, ok := t.stack[0].(*commitFeed); ok && f.newCount > 0 {
 				label += fmt.Sprintf("[%s]↑%d[-]", colorPrimary, f.newCount)
@@ -833,6 +842,11 @@ func (a *App) poll(ctx context.Context, interval time.Duration) {
 			a.tv.QueueUpdateDraw(func() {
 				a.unread = me.UnreadNotificationsCount
 				a.me.PasteisRemaining = me.Data.PasteisRemaining
+				a.me.Remotes = me.Data.Remotes
+				if me.Data.Remotes != nil && me.Data.Remotes.UnreadCount != a.remotesUnread {
+					a.remotesUnread = me.Data.Remotes.UnreadCount
+					a.reloadInbox(nil)
+				}
 				a.drawHeader()
 			})
 		}
@@ -1051,6 +1065,11 @@ func (a *App) globalKeys(event *tcell.EventKey) *tcell.EventKey {
 		return event
 	}
 
+	// A view can take a key the app has for itself, as c pushes a message in a remote rather than making a commit.
+	if o, ok := a.top().(interface{ ownsKey(r rune) bool }); ok && o.ownsKey(event.Rune()) {
+		return event
+	}
+
 	switch r := event.Rune(); {
 	case r >= '1' && r <= '9' && int(r-'1') < len(a.tabs):
 		a.switchTab(int(r - '1'))
@@ -1084,7 +1103,7 @@ func (a *App) globalKeys(event *tcell.EventKey) *tcell.EventKey {
 // goTo goes where g and the key after it say.
 func (a *App) goTo(r rune) {
 	// l, e, p and s go where they do on the web; the rest are the tabs the web has no key for.
-	tabs := map[rune]string{'l': "Following", 'a': "Latest", 'e': "Trending", 'n': "Notifications", 'b': "Starred", 'p': "Profile"}
+	tabs := map[rune]string{'l': "Following", 'a': "Latest", 'e': "Trending", 'n': "Notifications", 'b': "Starred", 'p': "Profile", 'm': "Remotes"}
 	switch {
 	case r == 'g':
 		if l, ok := a.top().(interface{ Select(int) }); ok {
@@ -1130,9 +1149,10 @@ func helpText() string {
 
 	return strings.TrimRight(section("Move")+
 		row("j k ↓ ↑", "next / previous", "gg G", "first / last")+
-		row("^d ^u", "page down / up", "1-6 tab", "switch tab")+
+		row("^d ^u", "page down / up", "1-7 tab", "switch tab")+
 		row("⏎ l", "open the thread", "esc h ⌫", "back")+
 		row("g l/a/e", "following/latest/hot", "g n/b/p", "notifs/starred/me")+
+		row("g m", "remotes", "", "")+
 		row("g s", "settings", "/ ^k", "search, or go to @user")+
 		row("g q", "scheduled commits", "g w", "who to follow")+
 		row("Q ^c", "quit", "esc", "quit, at a tab's top")+
@@ -1150,6 +1170,11 @@ func helpText() string {
 		"\n"+section("Profile")+
 		row("F", "follow / unfollow", "T", "next tab")+
 		row("M", "mute / unmute", "B", "block")+
+		"\n"+section("Remotes")+
+		row("n / N", "new remote / org", "⏎ c", "open / push")+
+		row("r", "reply", "e", "react")+
+		row("S", "stash", "m", "mute")+
+		row("P", "ping", "M", "org members")+
 		"\n"+section("Notifications")+
 		row("f", "filter by kind", "e", "everyone in a group")+
 		"\n"+section("Composer")+

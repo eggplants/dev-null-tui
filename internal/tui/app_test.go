@@ -251,7 +251,8 @@ func TestReadsTheLogAndActsOnACommit(t *testing.T) {
 
 	h.waitFor("Alice @alice · 1h")
 	h.waitFor("abc1234")
-	h.waitFor("Notifications 2")
+	// Seven tabs only fit in 80 columns by their short names.
+	h.waitFor("Ntf 2")
 	h.waitFor("├─M  Me @me")
 
 	h.key(tcell.KeyEnter)

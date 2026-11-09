@@ -95,9 +95,9 @@ them.
 | `j` `k` `↓` `↑` | Next / previous (scrolls through long commits) |
 | `gg` `G` | First / last |
 | `^d` `^u` | Page down / up |
-| `1`–`6` `Tab` | Following, Latest, Trending, Notifications, Starred, Profile |
+| `1`–`7` `Tab` | Following, Latest, Trending, Notifications, Starred, Profile, Remotes |
 | `g` then `l` `e` `p` `s` | Your log (Following), Trending, Profile, Settings, as on the web |
-| `g` then `a` `n` `b` | Latest, Notifications, Starred |
+| `g` then `a` `n` `b` `m` | Latest, Notifications, Starred, Remotes |
 | `g` then `q` | Your scheduled commits: `⏎` commits one now, `D` cancels it |
 | `g` then `w` | Who to follow: `f` follows, `x` says not interested, `R` suggests others |
 | `/` `^k` | Search commits and people, or go to an `@username`, a profile's or commit's link, or a hash on screen |
@@ -125,6 +125,18 @@ them.
 | `R` | Refresh |
 | `?` | Help |
 | `Q` `^c` | Quit |
+
+In Remotes:
+
+| Key | Action |
+| --- | --- |
+| `n` / `N` | Push to someone new / start an org |
+| `⏎` | Open the remote or org |
+| `S` / `m` / `p` | Stash / mute / pin it in the inbox (`a` / `x` accept or drop a request) |
+| `c` `⏎` / `r` | Push a message / reply to the selected one |
+| `e` / `p` | React to the message / pin it |
+| `P` | Ping them |
+| `M` | The org's members: `+` adds people, `m` makes one a maintainer or a contributor, `D` takes them out, `E` renames the org, `L` leaves it |
 
 In the composer:
 
@@ -165,8 +177,9 @@ In tmux, images reach a kitty, Ghostty or WezTerm outside it once tmux lets them
 
 The TUI can do whatever the [signed API](https://github.com/nunomaduro/dev-null.sh#signed-requests) can.
 
-Features that only the web has are out of reach for now:
-- remotes (messages and orgs)
+Features that only the web and the apps have are out of reach for now:
+- calls
+- recording voice notes (`w` plays one in the browser)
 
 And the `devnull://` handler only gets registered on Linux.
 

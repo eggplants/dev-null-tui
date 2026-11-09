@@ -326,6 +326,18 @@ func (a *App) compose(opts composeOptions) {
 				updateCounter()
 			}
 			return nil
+		case tcell.KeyCtrlG:
+			if len(images) == 0 {
+				a.flash("Attach an image with ^o first, then ^g describes it.")
+				return nil
+			}
+			a.describeImage(images, func(i int, text string) {
+				if i < len(images) {
+					images[i].description = text
+					updateCounter()
+				}
+			})
+			return nil
 		case tcell.KeyCtrlL:
 			switch {
 			case about != nil:
@@ -468,16 +480,19 @@ func previewSegments(body string) []api.Segment {
 
 // attachedLines lists the images picked so far, a line each, cutting names down to fit width.
 func attachedLines(images []attachment, width int) []string {
-	const remove = "  ^r remove"
+	const keys = "  ^g alt ^r remove"
 
 	lines := make([]string, len(images))
 	for i, img := range images {
 		size := fmt.Sprintf(" (%s)", humanSize(img.size))
-		name := shortenName(filepath.Base(img.path), width-uniseg.StringWidth("▣ "+size+remove))
+		if img.description != "" {
+			size += " · alt"
+		}
+		name := shortenName(filepath.Base(img.path), width-uniseg.StringWidth("▣ "+size+keys))
 		lines[i] = fmt.Sprintf("[%s]▣ %s%s", colorPrimary, tview.Escape(name), size)
-		// ^r takes off the last one.
+		// ^g describes them and ^r takes off the last one.
 		if i == len(images)-1 {
-			lines[i] += remove
+			lines[i] += keys
 		}
 		lines[i] += "[-]"
 	}
@@ -687,6 +702,7 @@ func (a *App) submit(body string, opts composeOptions, images []attachment, extr
 		draft.QuotedCommitID = opts.quoted.ID
 	}
 	draft.Poll = extras.poll
+	draft.ImageDescriptions = descriptions(images)
 	if extras.at != nil {
 		if !extras.at.After(now()) {
 			a.fail("That time has passed. ^t picks another.")

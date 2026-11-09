@@ -23,6 +23,8 @@ import (
 type attachment struct {
 	path string
 	size int64
+	// description is the image's alt text, for people who can't see it.
+	description string
 }
 
 // expandHome turns a leading ~/ into the home directory.
@@ -193,4 +195,48 @@ func readAttachments(images []attachment) ([]api.File, error) {
 	}
 
 	return files, nil
+}
+
+// descriptions are the images' alt texts in their order, or nil when none has one.
+func descriptions(images []attachment) []string {
+	out := make([]string, len(images))
+	described := false
+	for i, img := range images {
+		out[i] = img.description
+		described = described || img.description != ""
+	}
+	if !described {
+		return nil
+	}
+
+	return out
+}
+
+// maxDescriptionLength is the longest an image's alt text can be.
+const maxDescriptionLength = 1000
+
+// describeImage asks for the alt text of one of the images, picking which first when there are several, and runs
+// done with its index and the text.
+func (a *App) describeImage(images []attachment, done func(i int, text string)) {
+	ask := func(i int) {
+		input := a.askLine("Alt text for "+filepath.Base(images[i].path), "what the image shows, for people who can't see it", images[i].description, nil)
+		input.field.SetAcceptanceFunc(func(text string, _ rune) bool { return len([]rune(text)) <= maxDescriptionLength })
+		input.done = func(text string) { done(i, strings.TrimSpace(text)) }
+	}
+	if len(images) == 1 {
+		ask(0)
+		return
+	}
+
+	names := make([]string, len(images))
+	for i, img := range images {
+		names[i] = fmt.Sprintf("%d. %s", i+1, shortenName(filepath.Base(img.path), 20))
+	}
+	a.choose("Describe which image?", append(names, "Cancel"), func(label string) {
+		for i, name := range names {
+			if name == label {
+				ask(i)
+			}
+		}
+	})
 }

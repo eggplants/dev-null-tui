@@ -188,7 +188,7 @@ func TestShowsEveryImagePastALongName(t *testing.T) {
 	}
 	h.waitFor("end.png (3 B)")
 	h.waitFor("second.png (3 B)")
-	h.waitFor("third.png (3 B)  ^r remove")
+	h.waitFor("third.png (3 B)  ^g alt ^r remove")
 }
 
 func TestShortenName(t *testing.T) {
@@ -200,5 +200,40 @@ func TestShortenName(t *testing.T) {
 	}
 	if got := shortenName("スクリーンショット.png", 12); uniseg.StringWidth(got) > 12 || !strings.HasSuffix(got, ".png") {
 		t.Errorf("wide name = %q", got)
+	}
+}
+
+func TestDescribesAnImage(t *testing.T) {
+	image := filepath.Join(t.TempDir(), "chart.png")
+	if err := os.WriteFile(image, []byte("png"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	f := &fakeAPI{}
+	h := start(t, f)
+	h.waitFor("abc1234")
+
+	h.typeText("c")
+	h.waitFor("New commit")
+	h.key(tcell.KeyCtrlO)
+	h.waitFor("Attach an image")
+	h.typeText(image)
+	h.key(tcell.KeyEnter)
+	h.waitFor("chart.png (3 B)")
+
+	h.key(tcell.KeyCtrlG)
+	h.waitFor("Alt text for chart.png")
+	h.typeText("a bar chart of stars per day")
+	h.key(tcell.KeyEnter)
+	h.waitFor("chart.png (3 B) · alt")
+
+	h.typeText("stats")
+	h.key(tcell.KeyCtrlS)
+	h.waitFor("[log 9999999] stats")
+
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if len(f.drafts) != 1 || !slices.Equal(f.drafts[0].ImageDescriptions, []string{"a bar chart of stars per day"}) {
+		t.Errorf("sent %+v", f.drafts)
 	}
 }

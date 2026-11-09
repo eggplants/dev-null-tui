@@ -150,6 +150,7 @@ In the composer:
 | `^o` | Attach an image (`Tab` completes the path); pasting or dropping an image file attaches it too |
 | `^v` | Attach the image on the clipboard |
 | `^r` | Drop the last image |
+| `^g` | Describe an image (its alt text) |
 | `^l` | Ask a poll with a new commit |
 | `^t` | Commit it later: `+2h`, `18:30`, `tomorrow 9:00` or `2026-11-12 09:00` |
 

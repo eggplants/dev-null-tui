@@ -140,6 +140,16 @@ func (t *remoteThread) write(reply *api.Message) {
 		case tcell.KeyCtrlE:
 			a.editInEditor(area.TextArea)
 			return nil
+		case tcell.KeyCtrlG:
+			if len(images) > 0 {
+				a.describeImage(images, func(i int, text string) {
+					if i < len(images) {
+						images[i].description = text
+						update()
+					}
+				})
+			}
+			return nil
 		}
 		return event
 	})
@@ -154,7 +164,7 @@ func (t *remoteThread) write(reply *api.Message) {
 // push sends a message, closing the composer once it's in, or calls failed so it can be fixed.
 func (t *remoteThread) push(body string, reply *api.Message, images []attachment, failed func()) {
 	a := t.app
-	draft := api.NewMessage{Body: body, ClientID: newUUID()}
+	draft := api.NewMessage{Body: body, ClientID: newUUID(), ImageDescriptions: descriptions(images)}
 	if reply != nil {
 		id := reply.ID
 		draft.ReplyToID = &id

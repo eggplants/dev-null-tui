@@ -2,6 +2,7 @@ package tui
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"strings"
 	"sync"
@@ -28,6 +29,8 @@ type remotesAPI struct {
 	// purposes are what candidates were asked for, and shared the commits sent in Remotes.
 	purposes []string
 	shared   []string
+	// filters are what the inbox was narrowed to.
+	filters []string
 }
 
 func (f *remotesAPI) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -77,6 +80,20 @@ func (f *remotesAPI) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			if f.stashed {
 				data = append(data, conversation("d1", ada, "hey, how's the TUI?", 0))
 			}
+		}
+		if q := r.URL.Query().Get("q"); q != "" {
+			f.filters = append(f.filters, q)
+			var kept []any
+			for _, c := range data {
+				name := fmt.Sprint(c.(map[string]any)["name"])
+				if p, ok := c.(map[string]any)["partner"].(map[string]any); ok {
+					name = fmt.Sprint(p["handle"])
+				}
+				if strings.Contains(strings.ToLower(name), q) {
+					kept = append(kept, c)
+				}
+			}
+			data = kept
 		}
 		out = map[string]any{"data": data, "has_more": false, "unread_count": 1, "requests_count": 1}
 	case "GET /api/v1/remotes/@ada/messages":
@@ -324,5 +341,38 @@ func TestSendsACommitInRemotes(t *testing.T) {
 		if p != "share" {
 			t.Errorf("asked for candidates for %q", p)
 		}
+	}
+}
+
+func TestFiltersTheInbox(t *testing.T) {
+	f := &remotesAPI{}
+	h := start(t, f)
+	h.waitFor("Following")
+
+	h.typeText("gm")
+	h.waitFor("Gophers")
+
+	h.typeText("f")
+	h.waitFor("Only the remotes with")
+	h.typeText("@Ada")
+	h.key(tcell.KeyEnter)
+	h.waitFor("$ grep ada")
+	h.waitForGone("Gophers")
+	h.waitFor("hey, how's the TUI?")
+
+	h.typeText("f")
+	h.key(tcell.KeyCtrlU)
+	h.typeText("zzz")
+	h.key(tcell.KeyEnter)
+	h.waitFor("no remotes match zzz")
+
+	h.typeText("F")
+	h.waitFor("Gophers")
+	h.waitForGone("$ grep")
+
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if len(f.filters) < 2 || f.filters[0] != "ada" || f.filters[len(f.filters)-1] != "zzz" {
+		t.Errorf("filtered by %v", f.filters)
 	}
 }

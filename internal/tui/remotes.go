@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"github.com/gdamore/tcell/v2"
@@ -16,11 +17,27 @@ import (
 // fetched when there are any, as the web's Remotes page has them.
 func newInbox(app *App) *tabbedView {
 	t := newTabbedView(app, "Remotes")
+	// filter is the name or handle the conversations are narrowed to, as the web's search box does, if any.
+	filter := &inboxFilter{}
 	t.head = func(width int) []string {
+		var lines []string
 		if app.me != nil && app.me.Remotes == nil {
-			return []string{fmt.Sprintf(" [%s]Remotes are off: nobody can message you. g s turns them on.[-]", colorWarning), ""}
+			lines = append(lines, fmt.Sprintf(" [%s]Remotes are off: nobody can message you. g s turns them on.[-]", colorWarning), "")
 		}
-		return nil
+		if q := filter.get(); q != "" {
+			lines = append(lines, fmt.Sprintf(" [%s::b]$ grep[-::-] [%s]%s[-]  [%s](f changes it, F clears it)[-]", colorPrimary, colorInk, tview.Escape(q), colorFaint), "")
+		}
+		return lines
+	}
+	refilter := func(q string) {
+		filter.set(q)
+		for _, tab := range t.tabs {
+			if c, ok := tab.(*conversations); ok {
+				c.forget()
+			}
+		}
+		t.Invalidate()
+		t.tab().Reload()
 	}
 	t.keys = func(event *tcell.EventKey) *tcell.EventKey {
 		if event.Key() != tcell.KeyRune {
@@ -31,19 +48,35 @@ func newInbox(app *App) *tabbedView {
 			app.newRemote()
 		case 'N':
 			app.newOrg()
+		case 'f':
+			input := app.askLine("Only the remotes with", "a name or @handle; empty shows them all", filter.get(), nil)
+			input.done = func(text string) {
+				refilter(strings.ToLower(strings.TrimPrefix(strings.TrimSpace(text), "@")))
+			}
+		case 'F':
+			if filter.get() == "" {
+				return event
+			}
+			refilter("")
 		default:
 			return event
 		}
 		return nil
 	}
-	t.hints = func() []hint { return []hint{{"n", "new remote"}, {"N", "new org"}} }
+	t.hints = func() []hint {
+		hints := []hint{{"n", "new remote"}, {"N", "new org"}, {"f", "filter"}}
+		if filter.get() != "" {
+			hints = append(hints, hint{"F", "all"})
+		}
+		return hints
+	}
 
-	t.addConversations("Open", newConversations(app, api.InboxOpen, emptyState("no conversations yet", "n pushes to someone, N starts an org.")))
+	t.addConversations("Open", newConversations(app, filter, api.InboxOpen, emptyState("no conversations yet", "n pushes to someone, N starts an org.")))
 	// Requests from people the user doesn't follow are only fetched where the server has them on.
 	if app.me != nil && app.me.Remotes != nil && app.me.Remotes.Requests {
-		t.addConversations("Fetched", newConversations(app, api.InboxFetched, emptyState("no requests", "People you don't follow land here first.")))
+		t.addConversations("Fetched", newConversations(app, filter, api.InboxFetched, emptyState("no requests", "People you don't follow land here first.")))
 	}
-	t.addConversations("Stashed", newConversations(app, api.InboxStashed, emptyState("nothing stashed", "S stashes a conversation until someone writes in it.")))
+	t.addConversations("Stashed", newConversations(app, filter, api.InboxStashed, emptyState("nothing stashed", "S stashes a conversation until someone writes in it.")))
 
 	return t
 }
@@ -62,19 +95,22 @@ type conversations struct {
 	*pager[*api.Conversation]
 
 	tab string
+	// filter is the inbox's filter, shared by its tabs.
+	filter *inboxFilter
 	// keys and extraHints are what the inbox adds on every tab.
 	keys       func(event *tcell.EventKey) *tcell.EventKey
 	extraHints func() []hint
 }
 
-func newConversations(app *App, tab string, empty []string) *conversations {
-	l := &conversations{tab: tab}
+func newConversations(app *App, filter *inboxFilter, tab string, empty []string) *conversations {
+	l := &conversations{tab: tab, filter: filter}
 	l.pager = newPager(app, "Remotes", empty, func(c *api.Conversation, selected bool, width int) []string {
 		return conversationLines(app, c, selected, width)
 	})
 	l.end = ""
 	l.load = func(ctx context.Context, cursor string) ([]*api.Conversation, string, error) {
-		inbox, err := app.client.Inbox(ctx, tab, "", cursor)
+		q := filter.get()
+		inbox, err := app.client.Inbox(ctx, tab, q, cursor)
 		if err != nil {
 			return nil, "", err
 		}
@@ -99,9 +135,24 @@ func newConversations(app *App, tab string, empty []string) *conversations {
 			app.push(newRemoteThread(app, remoteOf(c), conversationName(c)))
 		}
 	}
+	l.afterReload = func() {
+		if q := filter.get(); q != "" && len(l.items) == 0 {
+			l.SetFooter(emptyState("no remotes match "+q, "f changes the filter, F shows them all.")...)
+		}
+	}
 
 	return l
 }
+
+// inboxFilter is the name or handle the inbox is narrowed to. The tabs read it as they load, off the UI goroutine.
+type inboxFilter struct{ q atomic.Value }
+
+func (f *inboxFilter) get() string {
+	q, _ := f.q.Load().(string)
+	return q
+}
+
+func (f *inboxFilter) set(q string) { f.q.Store(q) }
 
 // remoteOf names the conversation to the API.
 func remoteOf(c *api.Conversation) api.Remote {

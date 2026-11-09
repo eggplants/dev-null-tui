@@ -134,6 +134,7 @@ In Remotes:
 | `n` / `N` | Push to someone new / start an org |
 | `⏎` | Open the remote or org |
 | `S` / `m` / `p` | Stash / mute / pin it in the inbox (`a` / `x` accept or drop a request) |
+| `f` / `F` | Show only the remotes with a name or @handle / all of them again |
 | `c` `⏎` / `r` | Push a message / reply to the selected one |
 | `e` / `p` | React to the message / pin it |
 | `P` | Ping them |

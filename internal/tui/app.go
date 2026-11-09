@@ -1175,6 +1175,7 @@ func helpText() string {
 		row("r", "reply", "e", "react")+
 		row("S", "stash", "m", "mute")+
 		row("P", "ping", "M", "org members")+
+		row("f", "filter by name", "F", "show them all")+
 		"\n"+section("Notifications")+
 		row("f", "filter by kind", "e", "everyone in a group")+
 		"\n"+section("Composer")+

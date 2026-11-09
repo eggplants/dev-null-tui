@@ -236,3 +236,39 @@ func (f *commitFeed) showStars(c *api.Commit) {
 	})
 	f.app.push(l)
 }
+
+// sendInRemotes asks whom to send a commit to and pushes them a link to it in Remotes, then opens the remote, as Send
+// in Remotes does on the web.
+func (f *commitFeed) sendInRemotes(c *api.Commit) {
+	a := f.app
+	switch {
+	case a.me == nil || a.me.Remotes == nil:
+		a.fail("Remotes are off. g s turns them on.")
+		return
+	case c.Status != "approved" || c.DeletedAt != nil:
+		a.fail("Only a commit everyone can see can be sent.")
+		return
+	}
+
+	a.pickCandidate("Send "+c.ShortHash+" in Remotes", "share", "", func(u *api.User) {
+		if u.Username == a.me.Username {
+			a.fail("That's you.")
+			return
+		}
+		a.confirm(fmt.Sprintf("Send %s to @%s? They get a link to it in Remotes.", c.ShortHash, u.Username), func() {
+			remote := api.Remote{Handle: u.Username}
+			a.act(func(ctx context.Context) error {
+				_, err := a.client.Push(ctx, remote, api.NewMessage{Body: c.HTMLURL, ClientID: newUUID()}, nil)
+				return err
+			}, func(err error) {
+				if err != nil {
+					a.flashError(err)
+					return
+				}
+				a.succeed("Sent %s to @%s.", c.ShortHash, u.Username)
+				a.reloadInbox(nil)
+				a.push(newRemoteThread(a, remote, "@"+u.Username))
+			})
+		})
+	})
+}

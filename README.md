@@ -111,6 +111,7 @@ them.
 | `P` | Give a pastel (in pastéis mode) |
 | `u` | Open the author's profile |
 | `y` | Copy the link (over SSH too, with OSC 52) |
+| `m` | Send it to someone in Remotes |
 | `w` | Open in the browser |
 | `i` | View the images |
 | `v` | Vote on its poll |

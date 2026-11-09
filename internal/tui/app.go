@@ -1164,7 +1164,7 @@ func helpText() string {
 		row("u", "author's profile", "S", "who starred it")+
 		row("y", "copy the link", "i", "view the images")+
 		row("t", "translate", "v", "vote on its poll")+
-		row("p", "pin yours", "", "")+
+		row("p", "pin yours", "m", "send in remotes")+
 		row("D", "delete yours", "U", "undo the delete")+
 		row("!", "report", "", "")+
 		"\n"+section("Profile")+

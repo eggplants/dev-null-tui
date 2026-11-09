@@ -25,6 +25,9 @@ type remotesAPI struct {
 	roles    []string
 	// pending keeps the first message's link card pending until it's read again.
 	pending bool
+	// purposes are what candidates were asked for, and shared the commits sent in Remotes.
+	purposes []string
+	shared   []string
 }
 
 func (f *remotesAPI) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -126,6 +129,25 @@ func (f *remotesAPI) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	case "GET /api/v1/remotes/messages/1/link-preview":
 		out = map[string]any{"link_preview": map[string]any{"url": "https://example.com", "title": "Example Domain", "site_name": "example.com"}}
+	case "GET /api/v1/log/following":
+		out = map[string]any{"data": []any{map[string]any{
+			"id": "c1", "short_hash": "abc1234", "body": "shipped the TUI", "status": "approved", "created_at": at,
+			"html_url": "https://dev-null.sh/@ada/commits/c1", "author": ada,
+		}}, "meta": map[string]any{"next_cursor": nil}}
+	case "GET /api/v1/remotes/candidates":
+		f.purposes = append(f.purposes, r.URL.Query().Get("for"))
+		out = map[string]any{"candidates": []any{map[string]any{"user": map[string]any{"id": "u4", "handle": "bob", "name": "Bob"}, "reason": nil}}}
+	case "POST /api/v1/remotes/@bob/messages":
+		var in api.NewMessage
+		_ = json.NewDecoder(r.Body).Decode(&in)
+		f.shared = append(f.shared, in.Body)
+		out = map[string]any{"data": map[string]any{"id": 20, "user_id": "u0", "body": in.Body, "created_at": time.Now().Format(time.RFC3339)}}
+	case "GET /api/v1/remotes/@bob/messages":
+		var messages []any
+		for _, body := range f.shared {
+			messages = append(messages, map[string]any{"id": 20, "user_id": "u0", "body": body, "created_at": time.Now().Format(time.RFC3339)})
+		}
+		out = map[string]any{"data": map[string]any{"partner": map[string]any{"id": "u4", "handle": "bob", "name": "Bob"}, "messages": messages, "access": "open"}}
 	case "GET /api/v1/remotes/reactions":
 		out = map[string]any{"usage": []string{"🔥"}}
 	case "POST /api/v1/remotes/messages/1/reactions":
@@ -274,4 +296,33 @@ func TestReadsALinkCardAgainWhileItIsMade(t *testing.T) {
 	h.key(tcell.KeyEnter)
 	h.waitFor("reading the link")
 	h.waitFor("Example Domain")
+}
+
+func TestSendsACommitInRemotes(t *testing.T) {
+	f := &remotesAPI{}
+	h := start(t, f)
+	h.waitFor("shipped the TUI")
+
+	h.typeText("m")
+	h.waitFor("Send abc1234 in Remotes")
+	h.typeText("bo")
+	h.waitFor("@bob (Bob)")
+	h.key(tcell.KeyEnter)
+	h.waitFor("Send abc1234 to @bob?")
+	h.key(tcell.KeyRight)
+	h.key(tcell.KeyEnter)
+	h.waitFor("Sent abc1234 to @bob.")
+	h.waitFor("Following › @bob")
+	h.waitFor("dev-null.sh/@ada/commits/c1")
+
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if len(f.shared) != 1 || f.shared[0] != "https://dev-null.sh/@ada/commits/c1" {
+		t.Errorf("sent %v", f.shared)
+	}
+	for _, p := range f.purposes {
+		if p != "share" {
+			t.Errorf("asked for candidates for %q", p)
+		}
+	}
 }

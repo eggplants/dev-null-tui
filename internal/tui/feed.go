@@ -383,6 +383,9 @@ func (f *commitFeed) Hints() []hint {
 	if c.StarsCount > 0 {
 		hints = append(hints, hint{"S", "stars"})
 	}
+	if f.app.me != nil && f.app.me.Remotes != nil && c.Status == "approved" {
+		hints = append(hints, hint{"m", "send"})
+	}
 	if f.app.isMine(c) {
 		if c.ParentID == nil {
 			if c.IsPinned {
@@ -532,6 +535,8 @@ func (f *commitFeed) commitKeys(event *tcell.EventKey) *tcell.EventKey {
 		f.toggleTranslation(c)
 	case 'S':
 		f.showStars(c)
+	case 'm':
+		f.sendInRemotes(c)
 	case '!':
 		f.app.report(c)
 	default:

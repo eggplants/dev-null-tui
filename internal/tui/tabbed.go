@@ -20,11 +20,14 @@ type tabbedView struct {
 	tabs  []view
 	// current is the tab shown.
 	current int
-	// head are the lines above the tabs.
-	head func(width int) []string
+	// head are the lines above the tabs, and headOverlay draws over them, top being the screen row of the first.
+	head        func(width int) []string
+	headOverlay func(screen tcell.Screen, top, x, y, width, height int)
 	// keys handles the keys the owner adds on every tab, returning nil for those it used, and hints names them.
 	keys  func(event *tcell.EventKey) *tcell.EventKey
 	hints func() []hint
+	// self is the view that embeds this one, if one does, which is what goes on screen.
+	self view
 }
 
 func newTabbedView(app *App, title string) *tabbedView {
@@ -34,6 +37,7 @@ func newTabbedView(app *App, title string) *tabbedView {
 // addCommits adds a tab of commits.
 func (t *tabbedView) addCommits(name string, f *commitFeed) {
 	f.header = t.header
+	f.headerOverlay = t.overlayHead
 	f.keys = t.tabKeys
 	f.hints = t.tabHints
 	t.add(name, f)
@@ -42,6 +46,7 @@ func (t *tabbedView) addCommits(name string, f *commitFeed) {
 // addPeople adds a tab of people.
 func (t *tabbedView) addPeople(name string, l *peopleList) {
 	l.header = t.header
+	l.headerOverlay = t.overlayHead
 	l.keys = t.tabKeys
 	l.extraHints = t.tabHints
 	t.add(name, l)
@@ -61,6 +66,12 @@ func (t *tabbedView) header(width int) []string {
 	}
 
 	return append(lines, profileTabs(t.names, t.current, width), fmt.Sprintf("[%s]%s[-]", theme.hairline, strings.Repeat("─", max(width, 0))))
+}
+
+func (t *tabbedView) overlayHead(screen tcell.Screen, top, x, y, width, height int) {
+	if t.headOverlay != nil {
+		t.headOverlay(screen, top, x, y, width, height)
+	}
 }
 
 func (t *tabbedView) tabKeys(event *tcell.EventKey) *tcell.EventKey {
@@ -93,7 +104,11 @@ func (t *tabbedView) tabHints() []hint {
 func (t *tabbedView) switchTab(i int) {
 	t.current = i
 	t.Invalidate()
-	t.app.show(t)
+	if t.self != nil {
+		t.app.show(t.self)
+	} else {
+		t.app.show(t)
+	}
 	if !loaded(t.tab()) {
 		t.tab().Reload()
 	}

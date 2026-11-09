@@ -12,7 +12,7 @@ import (
 )
 
 // profileTabNames are a profile's tabs, as the web has them.
-var profileTabNames = []string{"Commits", "Replies", "Followers", "Following"}
+var profileTabNames = []string{"Commits", "Replies", "Followers", "Following", "Orgs"}
 
 // profileView shows a user's profile above one of its tabs: their commits, their replies, their followers or whom
 // they follow.
@@ -29,6 +29,15 @@ type profileView struct {
 	generation int
 }
 
+// profileOf opens someone's profile, or an organization's page when u is one.
+func profileOf(app *App, u *api.User) view {
+	if u.Type == api.ProfileOrganization {
+		return newOrganization(app, u.Username, nil)
+	}
+
+	return newProfile(app, u.Username)
+}
+
 func newProfile(app *App, username string) *profileView {
 	p := &profileView{Box: tview.NewBox(), app: app, username: username}
 
@@ -39,6 +48,10 @@ func newProfile(app *App, username string) *profileView {
 		}
 		f := newCommitFeed(app, "@"+username, empty, func(ctx context.Context, cursor string) ([]*api.Commit, string, error) {
 			page, err := app.client.UserCommits(ctx, username, cursor, replies)
+			// The handle may be an organization's, which the profile finds out and opens instead.
+			if isNotFound(err) {
+				return nil, "", nil
+			}
 			if err != nil {
 				return nil, "", err
 			}
@@ -73,6 +86,7 @@ func newProfile(app *App, username string) *profileView {
 		commits(true),
 		people(app.client.Followers, emptyState("no followers yet")),
 		people(app.client.Following, emptyState("not following anyone yet")),
+		people(app.client.FollowedOrganizations, emptyState("not following any organizations yet")),
 	}
 
 	return p
@@ -117,6 +131,10 @@ func (p *profileView) Reload() {
 		if generation != p.generation {
 			return
 		}
+		if isNotFound(err) && p.profile == nil {
+			p.tryOrganization()
+			return
+		}
 		if err != nil {
 			p.app.flashError(err)
 			return
@@ -128,6 +146,22 @@ func (p *profileView) Reload() {
 		p.invalidate()
 	})
 	p.tab().Reload()
+}
+
+// tryOrganization opens the organization the handle belongs to in place of the profile, as the web does for an
+// "@handle" no user has.
+func (p *profileView) tryOrganization() {
+	var org *api.Organization
+	p.app.async(func(ctx context.Context) (err error) {
+		org, err = p.app.client.Organization(ctx, p.username)
+		return err
+	}, func(err error) {
+		if err != nil {
+			p.app.flashError(err)
+			return
+		}
+		p.app.replace(p, newOrganization(p.app, p.username, org))
+	})
 }
 
 func (p *profileView) invalidate() {

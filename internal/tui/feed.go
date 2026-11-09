@@ -482,7 +482,7 @@ func (f *commitFeed) commitKeys(event *tcell.EventKey) *tcell.EventKey {
 		f.givePastel(c)
 	case 'u':
 		if c.Author != nil {
-			f.app.push(newProfile(f.app, c.Author.Username))
+			f.app.push(profileOf(f.app, c.Author))
 		}
 	case 'o':
 		f.toggleReplies(c)

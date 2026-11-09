@@ -40,7 +40,7 @@ func newPeopleList(app *App, title string, empty []string, load func(ctx context
 	}
 	l.onActivate = func() {
 		if u, ok := l.Selected(); ok {
-			app.push(newProfile(app, u.Username))
+			app.push(profileOf(app, u))
 		}
 	}
 
@@ -82,7 +82,7 @@ func (l *peopleList) InputHandler() func(event *tcell.EventKey, setFocus func(p 
 		switch {
 		case !ok:
 		case event.Key() == tcell.KeyEnter || event.Key() == tcell.KeyRune && event.Rune() == 'l':
-			l.app.push(newProfile(l.app, u.Username))
+			l.app.push(profileOf(l.app, u))
 			return
 		case l.undo != nil && event.Key() == tcell.KeyRune && event.Rune() == l.undo.key:
 			l.takeOff(u)
@@ -104,6 +104,9 @@ func (l *peopleList) follow(u *api.User) {
 
 	follow := u.IsFollowed == nil || !*u.IsFollowed
 	l.app.act(func(ctx context.Context) error {
+		if u.Type == api.ProfileOrganization {
+			return l.app.client.FollowOrganization(ctx, u.Username, follow)
+		}
 		return l.app.client.Follow(ctx, u.Username, follow)
 	}, func(err error) {
 		if err != nil {

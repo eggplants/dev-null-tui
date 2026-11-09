@@ -319,6 +319,23 @@ func (a *App) push(v view) {
 	v.Reload()
 }
 
+// replace puts v where old is in the tabs, as a profile turns out to be an organization's, and loads it.
+func (a *App) replace(old, v view) {
+	for _, t := range a.tabs {
+		for i, s := range t.stack {
+			if s != old {
+				continue
+			}
+			t.stack[i] = v
+			if a.top() == v {
+				a.show(v)
+			}
+			v.Reload()
+			return
+		}
+	}
+}
+
 func (a *App) pop() bool {
 	t := a.tabs[a.current]
 	if len(t.stack) == 1 {
@@ -633,6 +650,12 @@ func (a *App) notify(kind toastKind, format string, args ...any) {
 
 func (a *App) flashError(err error) {
 	a.fail("%s", tview.Escape(errorMessage(err)))
+}
+
+// isNotFound tells whether the API answered that what was asked for doesn't exist.
+func isNotFound(err error) bool {
+	var apiErr *api.Error
+	return errors.As(err, &apiErr) && apiErr.Status == 404
 }
 
 // errorMessage says what went wrong in words a person can act on.

@@ -138,7 +138,7 @@ func (n *notifications) InputHandler() func(event *tcell.EventKey, setFocus func
 			n.open(item)
 			return
 		case event.Key() == tcell.KeyRune && event.Rune() == 'u' && item.Actor != nil:
-			n.app.push(newProfile(n.app, item.Actor.Username))
+			n.app.push(profileOf(n.app, item.Actor))
 			return
 		case event.Key() == tcell.KeyRune && event.Rune() == 'e' && n.group == nil && (item.ActorsCount > 1 || item.EventCount > 1):
 			n.app.push(newNotificationGroup(n.app, item, n.typ))
@@ -168,6 +168,6 @@ func (n *notifications) open(item *api.Notification) {
 	case item.Commit != nil:
 		n.app.push(newThread(n.app, item.Commit.ID))
 	case item.Actor != nil:
-		n.app.push(newProfile(n.app, item.Actor.Username))
+		n.app.push(profileOf(n.app, item.Actor))
 	}
 }

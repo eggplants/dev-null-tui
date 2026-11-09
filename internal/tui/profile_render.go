@@ -307,6 +307,9 @@ func personLines(u *api.User, selected bool, width int) []string {
 	}
 
 	var pills []string
+	if u.Type == api.ProfileOrganization {
+		pills = append(pills, pill("organization", colorMuted))
+	}
 	if u.FollowsYou != nil && *u.FollowsYou {
 		pills = append(pills, pill("follows you", colorMuted))
 	}

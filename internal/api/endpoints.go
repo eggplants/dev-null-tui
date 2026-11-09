@@ -295,11 +295,21 @@ type NewCommit struct {
 	Body           string `json:"body"`
 	ParentID       string `json:"parent_id,omitempty"`
 	QuotedCommitID string `json:"quoted_commit_id,omitempty"`
+	// ImageDescriptions are the images' alt texts, in their order, "" for none.
+	ImageDescriptions []string `json:"image_descriptions,omitempty"`
 }
 
 func (c *Client) CreateCommit(ctx context.Context, commit NewCommit) (*Commit, error) {
 	var res data[Commit]
 	err := c.Do(ctx, http.MethodPost, "/api/v1/commits", commit, &res)
+
+	return &res.Data, err
+}
+
+// CreateCommitWithImages makes a commit carrying images: JPEG, PNG or WebP, up to 10 MB and 3 of them.
+func (c *Client) CreateCommitWithImages(ctx context.Context, commit NewCommit, images []File) (*Commit, error) {
+	var res data[Commit]
+	err := c.DoFiles(ctx, http.MethodPost, "/api/v1/commits", commit, "images", images, &res)
 
 	return &res.Data, err
 }

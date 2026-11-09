@@ -47,14 +47,19 @@ func requireSshKeygen(t *testing.T) {
 // verify checks a request's signature with `ssh-keygen -Y verify`, the way the server checks it. It runs in the
 // server's goroutine, so it returns its failure instead of failing the test.
 func verify(dir string, signer ssh.Signer, r *http.Request, body []byte) error {
-	blob, err := base64.StdEncoding.DecodeString(r.Header.Get("X-SSH-Signature"))
-	if err != nil {
-		return fmt.Errorf("X-SSH-Signature isn't base64: %w", err)
-	}
-
 	message := strings.Join([]string{
 		r.Header.Get("X-Devnull-Timestamp"), r.Header.Get("X-Devnull-Nonce"), r.Method, r.URL.RequestURI(), string(body),
 	}, "\n")
+
+	return verifyMessage(dir, signer, r.Header.Get("X-SSH-Signature"), "devnull-api", message)
+}
+
+// verifyMessage checks that signature signs message in namespace with signer's key.
+func verifyMessage(dir string, signer ssh.Signer, signature, namespace, message string) error {
+	blob, err := base64.StdEncoding.DecodeString(signature)
+	if err != nil {
+		return fmt.Errorf("X-SSH-Signature isn't base64: %w", err)
+	}
 
 	sig := filepath.Join(dir, "sig")
 	allowed := filepath.Join(dir, "allowed")
@@ -65,7 +70,7 @@ func verify(dir string, signer ssh.Signer, r *http.Request, body []byte) error {
 		return err
 	}
 
-	cmd := exec.Command("ssh-keygen", "-Y", "verify", "-f", allowed, "-I", "tui", "-n", "devnull-api", "-s", sig)
+	cmd := exec.Command("ssh-keygen", "-Y", "verify", "-f", allowed, "-I", "tui", "-n", namespace, "-s", sig)
 	cmd.Stdin = strings.NewReader(message)
 	if out, err := cmd.CombinedOutput(); err != nil {
 		return fmt.Errorf("signature doesn't verify: %w\n%s", err, out)

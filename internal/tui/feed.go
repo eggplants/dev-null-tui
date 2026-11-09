@@ -255,7 +255,8 @@ func newStarredFeed(app *App) *commitFeed {
 		})
 }
 
-// newThread shows a commit with the commits it replies to above it and its replies below it, as its page does.
+// newThread shows a commit with the commits it replies to above it and its replies below it, as its page does, and
+// the commits related to it under them all.
 func newThread(app *App, id string) *commitFeed {
 	f := newCommitFeed(app, "Thread", nil, nil)
 	f.focusID = id
@@ -263,6 +264,9 @@ func newThread(app *App, id string) *commitFeed {
 		f.title = "Thread " + c.ShortHash
 	}
 
+	// firstRelated is the first of the related commits, once they're in, and replies whether the commit has any.
+	var firstRelated string
+	replies := false
 	f.load = func(ctx context.Context, cursor string) ([]*api.Commit, string, error) {
 		var items []*api.Commit
 		if cursor == "" {
@@ -273,25 +277,47 @@ func newThread(app *App, id string) *commitFeed {
 			items = append(pointers(thread.Ancestors), &thread.Commit)
 		}
 
-		replies, err := app.client.Replies(ctx, id, cursor, false)
+		page, err := app.client.Replies(ctx, id, cursor, false)
 		if err != nil {
 			return nil, "", err
 		}
+		items = append(items, pointers(page.Data)...)
+		if cursor == "" {
+			has := len(page.Data) > 0
+			app.tv.QueueUpdate(func() { replies = has })
+		}
+		if page.NextCursor != "" {
+			return items, page.NextCursor, nil
+		}
 
-		return append(items, pointers(replies.Data)...), replies.NextCursor, nil
+		// Related commits only add to the thread, so it goes on without them if they don't come.
+		if related, err := app.client.Related(ctx, id); err == nil && len(related) > 0 {
+			first := related[0].ID
+			app.tv.QueueUpdate(func() { firstRelated = first })
+			items = append(items, pointers(related)...)
+		}
+
+		return items, "", nil
 	}
 	f.divider = func(prev, c *api.Commit, width int) []string {
-		if prev == nil || prev.ID != id {
+		switch {
+		case prev == nil:
 			return nil
+		case c.ID == firstRelated && prev.ID == id:
+			return []string{dividerLine("No replies yet · r to reply", width), dividerLine("Related commits", width)}
+		case c.ID == firstRelated:
+			return []string{dividerLine("Related commits", width)}
+		case prev.ID == id:
+			return []string{dividerLine(repliesLabel(prev.RepliesCount), width)}
 		}
-		return []string{dividerLine(repliesLabel(prev.RepliesCount), width)}
+		return nil
 	}
 	f.afterReload = func() {
 		for i, c := range f.items {
 			if c.ID == id {
 				f.title = "Thread " + c.ShortHash
 				f.Select(i)
-				if i == len(f.items)-1 {
+				if i == len(f.items)-1 && !replies {
 					f.SetFooter(dividerLine("No replies yet · r to reply", 0))
 				}
 			}

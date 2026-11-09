@@ -72,6 +72,12 @@ func (f *actionsAPI) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		} else {
 			out = page(theirs(), mine())
 		}
+	case "GET /api/v1/commits/c1":
+		out = map[string]any{"data": theirs(), "ancestors": []any{}}
+	case "GET /api/v1/commits/c1/related":
+		out = map[string]any{"data": []any{map[string]any{
+			"id": "c3", "short_hash": "ccc3333", "body": "also about tabs", "status": "approved", "created_at": at, "author": alice,
+		}}}
 	case "PUT /api/v1/commits/c2/pin":
 		f.pinned = true
 		out = map[string]any{"data": mine()}
@@ -205,4 +211,15 @@ func TestSaysWhenThereIsNothingToUndo(t *testing.T) {
 
 	h.typeText("U")
 	h.waitUntil(func(s string) bool { return strings.Contains(s, "Nothing to undo") }, "say there is nothing to undo")
+}
+
+func TestShowsRelatedCommitsUnderAThread(t *testing.T) {
+	h := start(t, &actionsAPI{})
+	h.waitFor("aaa1111")
+
+	h.key(tcell.KeyEnter)
+	h.waitFor("Thread aaa1111")
+	h.waitFor("No replies yet")
+	h.waitFor("Related commits")
+	h.waitFor("also about tabs")
 }

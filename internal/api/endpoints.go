@@ -303,6 +303,8 @@ type NewCommit struct {
 	Poll *NewPoll `json:"poll,omitempty"`
 	// ReplyRecipients are the ids of the people the parent was addressed to that a reply goes to as well.
 	ReplyRecipients []string `json:"reply_recipients,omitempty"`
+	// Author is the handle of an organization the user is a member of, to post as it, or empty to post as the user.
+	Author string `json:"author,omitempty"`
 }
 
 // NewPoll is a poll to ask with a commit: 2 to 4 options of up to 50 characters, open for one of PollDurations.

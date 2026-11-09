@@ -32,6 +32,7 @@ type NewScheduledCommit struct {
 	ScheduledAt       string   `json:"scheduled_at"`
 	ImageDescriptions []string `json:"image_descriptions,omitempty"`
 	Poll              *NewPoll `json:"poll,omitempty"`
+	Author            string   `json:"author,omitempty"`
 }
 
 // Schedule queues a commit to go out at a time, with images if there are any.
@@ -41,6 +42,7 @@ func (c *Client) Schedule(ctx context.Context, draft NewCommit, at time.Time, im
 		ScheduledAt:       at.Format(time.RFC3339),
 		ImageDescriptions: draft.ImageDescriptions,
 		Poll:              draft.Poll,
+		Author:            draft.Author,
 	}
 
 	var res data[ScheduledCommit]

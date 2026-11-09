@@ -7,7 +7,7 @@ import (
 
 type User struct {
 	ID             string    `json:"id"`
-	Username       string    `json:"username"`
+	Username       string    `json:"handle"`
 	Name           string    `json:"name"`
 	Bio            string    `json:"bio"`
 	Company        string    `json:"company"`
@@ -28,7 +28,7 @@ type User struct {
 
 // Mention is where a commit's body mentions someone, counted in characters.
 type Mention struct {
-	Username string `json:"username"`
+	Username string `json:"handle"`
 	Offset   int    `json:"offset"`
 	Length   int    `json:"length"`
 }

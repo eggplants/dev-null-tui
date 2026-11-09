@@ -30,8 +30,8 @@ func (f *fakeAPI) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 
-	me := map[string]any{"id": "u0", "username": "me", "name": "Me", "lane": 1}
-	alice := map[string]any{"id": "u1", "username": "alice", "name": "Alice", "lane": "#3a88fe"}
+	me := map[string]any{"id": "u0", "handle": "me", "name": "Me", "lane": 1}
+	alice := map[string]any{"id": "u1", "handle": "alice", "name": "Alice", "lane": "#3a88fe"}
 	commit := func() map[string]any {
 		stars := 2
 		if f.starred {
@@ -287,12 +287,12 @@ func (g *growingLog) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	var out map[string]any
 	switch r.URL.Path {
 	case "/api/v1/me":
-		out = map[string]any{"data": map[string]any{"id": "u0", "username": "me", "name": "Me"}}
+		out = map[string]any{"data": map[string]any{"id": "u0", "handle": "me", "name": "Me"}}
 	case "/api/v1/log/following":
 		commits := make([]any, len(g.bodies))
 		newer := -1
 		for i, body := range g.bodies {
-			commits[i] = map[string]any{"id": body, "short_hash": body, "body": body, "status": "approved", "author": map[string]any{"id": "u1", "username": "alice", "name": "Alice"}}
+			commits[i] = map[string]any{"id": body, "short_hash": body, "body": body, "status": "approved", "author": map[string]any{"id": "u1", "handle": "alice", "name": "Alice"}}
 			if body == r.URL.Query().Get("since") {
 				newer = i
 			}

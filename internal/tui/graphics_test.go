@@ -152,7 +152,7 @@ func imageAPI(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	alice := map[string]any{"id": "u1", "username": "alice", "name": "Alice"}
+	alice := map[string]any{"id": "u1", "handle": "alice", "name": "Alice"}
 	img := map[string]any{"id": "i1", "url": "http://" + r.Host + "/img.png", "width": 8, "height": 4}
 	missing := map[string]any{"id": "i2", "url": "http://" + r.Host + "/missing.png", "width": 8, "height": 4}
 

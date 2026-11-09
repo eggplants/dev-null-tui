@@ -25,13 +25,13 @@ func (f *richAPI) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	defer f.mu.Unlock()
 
 	yes := true
-	me := map[string]any{"id": "u0", "username": "me", "name": "Me", "lane": 1}
-	alice := map[string]any{"id": "u1", "username": "alice", "name": "Alice", "lane": 2, "is_followed": &yes, "bio": "builds things"}
+	me := map[string]any{"id": "u0", "handle": "me", "name": "Me", "lane": 1}
+	alice := map[string]any{"id": "u1", "handle": "alice", "name": "Alice", "lane": 2, "is_followed": &yes, "bio": "builds things"}
 	commit := map[string]any{
 		"id": "11111111-2222-3333-4444-555555555555", "short_hash": "abc1234", "body": "hello @alice", "status": "approved",
 		"created_at": time.Now().Add(-time.Hour).Format(time.RFC3339), "author": alice, "stars_count": 1,
 		"html_url": "http://" + r.Host + "/@alice/commits/11111111-2222-3333-4444-555555555555",
-		"mentions": []any{map[string]any{"username": "alice", "offset": 6, "length": 6}},
+		"mentions": []any{map[string]any{"handle": "alice", "offset": 6, "length": 6}},
 	}
 	page := func(data ...any) map[string]any {
 		return map[string]any{"data": data, "meta": map[string]any{"next_cursor": nil}}
@@ -179,7 +179,7 @@ func TestFitsEveryScreenSize(t *testing.T) {
 type repliesAPI struct{ richAPI }
 
 func (f *repliesAPI) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	alice := map[string]any{"id": "u1", "username": "alice", "name": "Alice"}
+	alice := map[string]any{"id": "u1", "handle": "alice", "name": "Alice"}
 	switch r.URL.Path {
 	case "/api/v1/log/following":
 		_ = json.NewEncoder(w).Encode(map[string]any{"data": []any{map[string]any{

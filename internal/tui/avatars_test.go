@@ -54,11 +54,11 @@ func avatarAPI(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	alice := map[string]any{"id": "u1", "username": "alice", "name": "Alice Liddell", "lane": 3, "avatar_url": "http://" + r.Host + "/avatar.png"}
+	alice := map[string]any{"id": "u1", "handle": "alice", "name": "Alice Liddell", "lane": 3, "avatar_url": "http://" + r.Host + "/avatar.png"}
 	var out any = map[string]any{"data": []any{}, "meta": map[string]any{"next_cursor": nil}}
 	switch r.URL.Path {
 	case "/api/v1/me":
-		out = map[string]any{"data": map[string]any{"id": "u0", "username": "me", "name": "Me"}}
+		out = map[string]any{"data": map[string]any{"id": "u0", "handle": "me", "name": "Me"}}
 	case "/api/v1/log/following":
 		out = map[string]any{"data": []any{map[string]any{
 			"id": "c1", "short_hash": "abc1234", "body": "hello", "status": "approved", "author": alice,
@@ -95,7 +95,7 @@ func pinnedAPI(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	alice := map[string]any{"id": "u1", "username": "alice", "name": "Alice", "lane": 2}
+	alice := map[string]any{"id": "u1", "handle": "alice", "name": "Alice", "lane": 2}
 	commit := func(id, body string, images ...any) map[string]any {
 		return map[string]any{
 			"id": id, "short_hash": id + "00000", "body": body, "status": "approved", "author": alice,
@@ -105,7 +105,7 @@ func pinnedAPI(w http.ResponseWriter, r *http.Request) {
 	var out any = map[string]any{"data": []any{}, "meta": map[string]any{"next_cursor": nil}}
 	switch r.URL.Path {
 	case "/api/v1/me":
-		out = map[string]any{"data": map[string]any{"id": "u0", "username": "me", "name": "Me"}}
+		out = map[string]any{"data": map[string]any{"id": "u0", "handle": "me", "name": "Me"}}
 	case "/api/v1/users/alice":
 		image := map[string]any{"id": "i1", "url": "http://" + r.Host + "/image.png", "width": 16, "height": 9}
 		out = map[string]any{"data": alice, "pinned_commit": commit("p1", "pinned one", image)}

@@ -45,10 +45,10 @@ type commit struct {
 }
 
 var (
-	you  = user{"id": "u0", "username": "you", "name": "You", "lane": 1, "bio": "Shipping things from the terminal."}
-	noor = user{"id": "u1", "username": "noor", "name": "Noor Haddad", "lane": 3, "bio": "Go, terminals and too much coffee.", "location": "Lisbon"}
-	sam  = user{"id": "u2", "username": "sam", "name": "Sam Rivera", "lane": 4}
-	mika = user{"id": "u3", "username": "mika", "name": "Mika Tanaka", "lane": "#fcc419"}
+	you  = user{"id": "u0", "handle": "you", "name": "You", "lane": 1, "bio": "Shipping things from the terminal."}
+	noor = user{"id": "u1", "handle": "noor", "name": "Noor Haddad", "lane": 3, "bio": "Go, terminals and too much coffee.", "location": "Lisbon"}
+	sam  = user{"id": "u2", "handle": "sam", "name": "Sam Rivera", "lane": 4}
+	mika = user{"id": "u3", "handle": "mika", "name": "Mika Tanaka", "lane": "#fcc419"}
 )
 
 type server struct {
@@ -84,7 +84,7 @@ func newServer() *server {
 		Body: "Pairing on the new onboarding flow today. Whiteboards everywhere."})
 	add(&commit{ID: "c6", Author: noor, Ago: 27 * time.Hour, Stars: 1280,
 		Body:     "Thanks @mika for the review on https://github.com/eggplants/dev-null-tui/pull/42, it's in!",
-		Mentions: []map[string]any{{"username": "mika", "offset": 7, "length": 5}}})
+		Mentions: []map[string]any{{"handle": "mika", "offset": 7, "length": 5}}})
 	add(&commit{ID: "c7", Author: you, Ago: 50 * time.Hour, Stars: 3,
 		Body: "First commit from the terminal. Hello, /dev/null!"})
 
@@ -120,7 +120,7 @@ func (s *server) json(c *commit, withPreview bool) map[string]any {
 	out := map[string]any{
 		"id": c.ID, "short_hash": shortHash(c.ID),
 		"body": c.Body, "body_segments": c.Segments, "status": "approved",
-		"html_url":   "https://dev-null.sh/@" + c.Author["username"].(string) + "/commits/" + c.ID,
+		"html_url":   "https://dev-null.sh/@" + c.Author["handle"].(string) + "/commits/" + c.ID,
 		"created_at": created.UTC().Format(time.RFC3339), "author": c.Author,
 		"stars_count": c.Stars, "starred": c.Starred, "replies_count": len(replies),
 		"link_preview": c.Link, "poll": c.Poll, "images": images(c), "pasteis_count": c.Pasteis, "mentions": c.Mentions,
@@ -312,7 +312,7 @@ func (s *server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	case r.Method == "GET" && parts[0] == "notifications" && len(parts) == 3:
 		var data []any
 		for _, u := range []user{sam, noor, mika} {
-			data = append(data, map[string]any{"id": "g-" + u["username"].(string), "type": "starred", "created_at": s.start.Add(-4 * time.Minute).Format(time.RFC3339), "actor": u, "actors_count": 1, "commit": s.json(s.find("c5"), false)})
+			data = append(data, map[string]any{"id": "g-" + u["handle"].(string), "type": "starred", "created_at": s.start.Add(-4 * time.Minute).Format(time.RFC3339), "actor": u, "actors_count": 1, "commit": s.json(s.find("c5"), false)})
 		}
 		out = map[string]any{"data": data, "meta": map[string]any{"next_cursor": nil}}
 	case r.Method == "DELETE" && parts[0] == "commits" && len(parts) == 2:
@@ -337,7 +337,7 @@ func (s *server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		counted["commits_count"], counted["followers_count"], counted["following_count"] = 128, 2048, 64
 		counted["created_at"] = s.start.AddDate(-1, 0, 0).Format(time.RFC3339)
 		out = map[string]any{
-			"data": counted, "is_following": u["username"] != "you", "follows_you": u["username"] == "noor",
+			"data": counted, "is_following": u["handle"] != "you", "follows_you": u["handle"] == "noor",
 			"pasteis_received": 12, "activity": activity(s.start), "streaks": map[string]any{"current": 3, "longest": 12},
 			"achievements": achievements(),
 		}
@@ -346,10 +346,10 @@ func (s *server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		var people []any
 		for _, u := range []user{noor, sam, mika} {
 			p := user{"is_followed": &yes, "follows_you": &no}
-			if u["username"] == "noor" {
+			if u["handle"] == "noor" {
 				p["follows_you"] = &yes
 			}
-			if u["username"] == "sam" {
+			if u["handle"] == "sam" {
 				p["is_followed"] = &no
 			}
 			for k, v := range u {
@@ -359,7 +359,7 @@ func (s *server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 		out = map[string]any{"data": people, "meta": map[string]any{"next_cursor": nil}}
 	case r.Method == "GET" && parts[0] == "users" && len(parts) == 3 && parts[2] == "commits":
-		out = s.list(func(c *commit) bool { return topLevel(c) && c.Author["username"] == parts[1] }, true)
+		out = s.list(func(c *commit) bool { return topLevel(c) && c.Author["handle"] == parts[1] }, true)
 	case r.Method == "GET" && parts[0] == "commits" && len(parts) == 2:
 		c := s.find(parts[1])
 		if c == nil {
@@ -431,7 +431,7 @@ func main() {
 	}
 	base = "http://" + ln.Addr().String()
 	for _, u := range []user{you, noor, sam, mika} {
-		u["avatar_url"] = base + "/avatar/" + u["username"].(string) + ".png"
+		u["avatar_url"] = base + "/avatar/" + u["handle"].(string) + ".png"
 	}
 	cfg := &config.Config{BaseURL: base, KeyPath: keyPath, Username: "you"}
 	if err := cfg.Save(); err != nil {

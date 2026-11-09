@@ -1079,6 +1079,8 @@ func (a *App) goTo(r rune) {
 		}
 	case r == 's':
 		a.push(newSettings(a))
+	case r == 'q':
+		a.push(newScheduled(a))
 	case tabs[r] != "":
 		a.switchTab(a.tabIndex(tabs[r]))
 	}
@@ -1117,6 +1119,7 @@ func helpText() string {
 		row("⏎ l", "open the thread", "esc h ⌫", "back")+
 		row("g l/a/e", "following/latest/hot", "g n/b/p", "notifs/starred/me")+
 		row("g s", "settings", "/ ^k", "search, or go to @user")+
+		row("g q", "scheduled commits", "", "")+
 		row("Q ^c", "quit", "esc", "quit, at a tab's top")+
 		"\n"+section("Commits")+
 		row("c", "new commit", "R", "refresh")+
@@ -1138,6 +1141,7 @@ func helpText() string {
 		row("^s ^⏎", "commit", "esc", "cancel, keeping a draft")+
 		row("^o", "attach an image", "^r", "remove the last one")+
 		row("^e", "write in $EDITOR", "^p", "preview")+
+		row("^l", "ask a poll", "^t", "commit it later")+
 		row("tab", "complete @mention", "", ""), "\n")
 }
 

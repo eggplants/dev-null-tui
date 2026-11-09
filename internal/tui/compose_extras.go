@@ -1,0 +1,178 @@
+package tui
+
+import (
+	"context"
+	"fmt"
+	"strings"
+	"time"
+
+	"github.com/gdamore/tcell/v2"
+	"github.com/rivo/tview"
+
+	"github.com/eggplants/dev-null-tui/internal/api"
+)
+
+// commitExtras are what a new commit can carry besides its words and images: a poll, and the time it is scheduled
+// for.
+type commitExtras struct {
+	poll *api.NewPoll
+	at   *time.Time
+}
+
+// lines say what the commit carries, under its images in the composer.
+func (e commitExtras) lines(width int) []string {
+	var lines []string
+	if p := e.poll; p != nil {
+		text := fmt.Sprintf("▤ poll: %s · %s", strings.Join(p.Options, " / "), pollDurationLabel(p.Duration))
+		lines = append(lines, fmt.Sprintf("[%s]%s  ^l change[-]", colorPrimary, tview.Escape(firstLine(text, width-12))))
+	}
+	if e.at != nil {
+		lines = append(lines, fmt.Sprintf("[%s]◷ goes out %s  ^t change[-]", colorPrimary, e.at.Local().Format("Mon Jan 2 15:04")))
+	}
+
+	return lines
+}
+
+func pollDurationLabel(minutes int) string {
+	for _, d := range api.PollDurations {
+		if d.Minutes == minutes {
+			return d.Label
+		}
+	}
+
+	return fmt.Sprintf("%d minutes", minutes)
+}
+
+// editPoll asks for a poll's options and how long it stays open, starting from the one the commit has, if any. done
+// runs with the poll, or nil once it's taken off.
+func (a *App) editPoll(current *api.NewPoll, done func(p *api.NewPoll)) {
+	form := tview.NewForm()
+	options := make([]*tview.InputField, api.MaxPollOptions)
+	for i := range options {
+		value := ""
+		if current != nil && i < len(current.Options) {
+			value = current.Options[i]
+		}
+		label := fmt.Sprintf("Option %d", i+1)
+		if i >= api.MinPollOptions {
+			label += " (if any)"
+		}
+		options[i] = tview.NewInputField().SetLabel(label).SetText(value).SetFieldWidth(api.MaxPollOptionLength + 1).
+			SetAcceptanceFunc(func(text string, _ rune) bool { return len([]rune(text)) <= api.MaxPollOptionLength })
+		form.AddFormItem(options[i])
+	}
+
+	labels := make([]string, len(api.PollDurations))
+	picked := 1
+	for i, d := range api.PollDurations {
+		labels[i] = d.Label
+		if current != nil && d.Minutes == current.Duration {
+			picked = i
+		}
+	}
+	duration := tview.NewDropDown().SetLabel("Open for").SetOptions(labels, nil).SetCurrentOption(picked)
+	form.AddFormItem(duration)
+
+	closeForm := func() { a.closeModal("poll") }
+	form.AddButton("Save", func() {
+		var picked []string
+		seen := map[string]bool{}
+		for _, o := range options {
+			text := strings.TrimSpace(o.GetText())
+			if text == "" {
+				continue
+			}
+			if seen[strings.ToLower(text)] {
+				a.fail("Each option of a poll has to be different.")
+				return
+			}
+			seen[strings.ToLower(text)] = true
+			picked = append(picked, text)
+		}
+		if len(picked) < api.MinPollOptions {
+			a.fail("A poll needs at least %d options.", api.MinPollOptions)
+			return
+		}
+		i, _ := duration.GetCurrentOption()
+		closeForm()
+		done(&api.NewPoll{Options: picked, Duration: api.PollDurations[i].Minutes})
+	})
+	if current != nil {
+		form.AddButton("Remove", func() {
+			closeForm()
+			done(nil)
+		})
+	}
+	form.AddButton("Cancel", closeForm)
+	form.SetCancelFunc(closeForm)
+
+	form.SetBorder(true).SetTitle(" Poll ").SetBackgroundColor(tcell.GetColor(theme.popover))
+	form.SetFieldBackgroundColor(tcell.GetColor(colorWash)).SetFieldTextColor(tcell.GetColor(colorInk)).
+		SetLabelColor(tcell.GetColor(colorMuted)).SetButtonBackgroundColor(tcell.GetColor(colorWash)).
+		SetButtonTextColor(tcell.GetColor(colorInk))
+
+	a.openModal("poll", centered(form, 72, 2*api.MaxPollOptions+7))
+}
+
+// askSchedule asks when the commit goes out, starting from the time it has, if any. done runs with the time, or nil
+// when the answer is empty, which commits it right away again.
+func (a *App) askSchedule(current *time.Time, done func(at *time.Time)) {
+	initial := ""
+	if current != nil {
+		initial = current.Local().Format("2006-01-02 15:04")
+	}
+
+	input := a.askLine("Commit it later", "+2h, 18:30, tomorrow 9:00, 2026-11-12 09:00 · empty: right away", initial, nil)
+	input.done = func(text string) {
+		if strings.TrimSpace(text) == "" {
+			done(nil)
+			return
+		}
+		at, err := parseWhen(text, now())
+		switch {
+		case err != nil:
+			a.fail("%s", tview.Escape(err.Error()))
+		case !at.After(now()):
+			a.fail("That time has passed.")
+		case at.After(now().Add(api.MaxScheduleAhead)):
+			a.fail("A commit can be scheduled up to 30 days ahead.")
+		default:
+			done(&at)
+		}
+	}
+}
+
+// schedule queues the commit for later, closing the composer once it's in the queue.
+func (a *App) schedule(draft api.NewCommit, at time.Time, images []attachment, failed, sent func()) {
+	timeout := apiTimeout
+	if len(images) > 0 {
+		timeout = uploadTimeout
+	}
+
+	a.actFor(timeout, func(ctx context.Context) error {
+		var files []api.File
+		if len(images) > 0 {
+			var err error
+			if files, err = readAttachments(images); err != nil {
+				return err
+			}
+		}
+		_, err := a.client.Schedule(ctx, draft, at, files)
+		return err
+	}, func(err error) {
+		if err != nil {
+			a.flashError(err)
+			failed()
+			return
+		}
+
+		sent()
+		a.closeModal("compose")
+		a.succeed("Scheduled for %s. g q lists your queue.", at.Local().Format("Mon Jan 2 15:04"))
+		a.views(func(v view) {
+			if q, ok := v.(*scheduledView); ok {
+				q.Reload()
+			}
+		})
+	})
+}

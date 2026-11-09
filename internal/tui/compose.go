@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"time"
 	"unicode/utf8"
 
 	"github.com/gdamore/tcell/v2"
@@ -52,6 +53,8 @@ func (a *App) compose(opts composeOptions) {
 	}
 
 	var images []attachment
+	// extras are the poll and the time the commit is scheduled for, if it has them.
+	var extras commitExtras
 
 	area := &composeArea{TextArea: tview.NewTextArea().SetPlaceholder("What did you ship?").SetWordWrap(true)}
 	popover := tcell.StyleDefault.Background(tcell.GetColor(theme.popover))
@@ -118,13 +121,19 @@ func (a *App) compose(opts composeOptions) {
 		const ring = 8
 		filled := min(ring, n*ring/maxBodyLength)
 		bar := fmt.Sprintf("[%s]%s[%s]%s[-]", color, strings.Repeat("━", filled), colorRail, strings.Repeat("━", ring-filled))
-		keys := fmt.Sprintf("[%s::b]^s[-::-] [%s]commit[-]  [%s::b]^e[-::-] [%s]$EDITOR[-]  [%s::b]^p[-::-] [%s]preview[-]  [%s::b]^o[-::-] [%s]image[-]  [%s::b]esc[-::-]",
-			colorInk, colorMuted, colorInk, colorMuted, colorInk, colorMuted, colorInk, colorMuted, colorInk)
+		key := func(k, label string) string {
+			return fmt.Sprintf("[%s::b]%s[-::-] [%s]%s[-]", colorInk, k, colorMuted, label)
+		}
+		keys := strings.Join([]string{key("^s", "commit"), key("^e", "editor"), key("^p", "preview"), key("^o", "image")}, " ")
+		if about == nil {
+			keys += " " + key("^l", "poll") + " " + key("^t", "later")
+		}
 		counter.SetText(spread(keys, fmt.Sprintf("%s [%s]%d/%d[-]", bar, color, n, maxBodyLength), composeWidth-2))
 
 		// One line per image, so a long name doesn't push the others out of sight.
-		form.ResizeItem(attached, len(images), 0)
-		attached.SetText(strings.Join(attachedLines(images, composeWidth-2), "\n"))
+		lines := append(attachedLines(images, composeWidth-2), extras.lines(composeWidth-2)...)
+		form.ResizeItem(attached, len(lines), 0)
+		attached.SetText(strings.Join(lines, "\n"))
 
 		mention = a.mentionAt(area.TextArea)
 		if mention == nil {
@@ -144,8 +153,20 @@ func (a *App) compose(opts composeOptions) {
 		images = append(images, img)
 		updateCounter()
 	}
+	// canAttach tells whether another image can go on the commit, saying why not if it can't.
+	canAttach := func() bool {
+		switch {
+		case extras.poll != nil:
+			a.fail("A commit can't carry a poll and images both. ^l takes the poll off.")
+		case len(images) >= commit.MaxImages:
+			a.fail("A commit can carry up to %d images.", commit.MaxImages)
+		default:
+			return true
+		}
+		return false
+	}
 	area.pasted = func(text string) bool {
-		if len(images) >= commit.MaxImages || strings.Contains(strings.TrimSpace(text), "\n") {
+		if extras.poll != nil || len(images) >= commit.MaxImages || strings.Contains(strings.TrimSpace(text), "\n") {
 			return false
 		}
 		img, err := checkImage(text)
@@ -187,7 +208,7 @@ func (a *App) compose(opts composeOptions) {
 		case tcell.KeyCtrlS:
 			if !submitting {
 				submitting = true
-				a.submit(strings.TrimSpace(area.GetText()), opts, images, func() { submitting = false }, func() {
+				a.submit(strings.TrimSpace(area.GetText()), opts, images, extras, func() { submitting = false }, func() {
 					if about == nil {
 						a.sys.SaveDraft("")
 					}
@@ -208,16 +229,12 @@ func (a *App) compose(opts composeOptions) {
 			a.editInEditor(area.TextArea)
 			return nil
 		case tcell.KeyCtrlO:
-			if len(images) >= commit.MaxImages {
-				a.fail("A commit can carry up to %d images.", commit.MaxImages)
-			} else {
+			if canAttach() {
 				a.pickImage(attach)
 			}
 			return nil
 		case tcell.KeyCtrlV:
-			if len(images) >= commit.MaxImages {
-				a.fail("A commit can carry up to %d images.", commit.MaxImages)
-			} else {
+			if canAttach() {
 				a.pasteImage(attach)
 			}
 			return nil
@@ -226,6 +243,29 @@ func (a *App) compose(opts composeOptions) {
 				images = images[:len(images)-1]
 				updateCounter()
 			}
+			return nil
+		case tcell.KeyCtrlL:
+			switch {
+			case about != nil:
+				a.fail("Only a new commit can ask a poll, not a reply or a quote.")
+			case len(images) > 0:
+				a.fail("A commit can't carry a poll and images both. ^r takes the images off.")
+			default:
+				a.editPoll(extras.poll, func(p *api.NewPoll) {
+					extras.poll = p
+					updateCounter()
+				})
+			}
+			return nil
+		case tcell.KeyCtrlT:
+			if about != nil {
+				a.fail("Only a new commit can be scheduled, not a reply or a quote.")
+				return nil
+			}
+			a.askSchedule(extras.at, func(at *time.Time) {
+				extras.at = at
+				updateCounter()
+			})
 			return nil
 		}
 
@@ -478,7 +518,7 @@ func (m *mentionState) complete(area *tview.TextArea) {
 }
 
 // submit sends the draft and closes the composer, or calls failed and leaves it open so the draft can be fixed.
-func (a *App) submit(body string, opts composeOptions, images []attachment, failed, sent func()) {
+func (a *App) submit(body string, opts composeOptions, images []attachment, extras commitExtras, failed, sent func()) {
 	// A commit with images may go without words, as on the web.
 	if (len(images) == 0 || body != "") && !a.checkLength(body) {
 		failed()
@@ -491,6 +531,16 @@ func (a *App) submit(body string, opts composeOptions, images []attachment, fail
 	}
 	if opts.quoted != nil {
 		draft.QuotedCommitID = opts.quoted.ID
+	}
+	draft.Poll = extras.poll
+	if extras.at != nil {
+		if !extras.at.After(now()) {
+			a.fail("That time has passed. ^t picks another.")
+			failed()
+			return
+		}
+		a.schedule(draft, *extras.at, images, failed, sent)
+		return
 	}
 
 	timeout := apiTimeout

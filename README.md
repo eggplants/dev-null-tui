@@ -98,6 +98,7 @@ them.
 | `1`–`6` `Tab` | Following, Latest, Trending, Notifications, Starred, Profile |
 | `g` then `l` `e` `p` `s` | Your log (Following), Trending, Profile, Settings, as on the web |
 | `g` then `a` `n` `b` | Latest, Notifications, Starred |
+| `g` then `q` | Your scheduled commits: `⏎` commits one now, `D` cancels it |
 | `/` `^k` | Search commits and people, or go to an `@username`, a profile's or commit's link, or a hash on screen |
 | `⏎` `l` (or click it again) | Open the thread; on the open commit, reply |
 | `Esc` `h` `⌫` | Back; `Esc` at a tab's top quits |
@@ -136,6 +137,8 @@ In the composer:
 | `^o` | Attach an image (`Tab` completes the path); pasting or dropping an image file attaches it too |
 | `^v` | Attach the image on the clipboard |
 | `^r` | Drop the last image |
+| `^l` | Ask a poll with a new commit |
+| `^t` | Commit it later: `+2h`, `18:30`, `tomorrow 9:00` or `2026-11-12 09:00` |
 
 ### Settings
 
@@ -163,8 +166,6 @@ The TUI can do whatever the [signed API](https://github.com/nunomaduro/dev-null.
 
 Features that only the web has are out of reach for now:
 - remotes (messages and orgs)
-- creating polls
-- scheduled commits
 
 And the `devnull://` handler only gets registered on Linux.
 

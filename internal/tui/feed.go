@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/gdamore/tcell/v2"
 	"github.com/rivo/tview"
@@ -341,11 +342,29 @@ func (f *commitFeed) Hints() []hint {
 	if len(c.Images) > 0 {
 		hints = append(hints, hint{"i", "images"})
 	}
+	if p := c.Poll; p != nil && !p.IsClosed && !p.HasVoted {
+		hints = append(hints, hint{"v", "vote"})
+	}
 	if f.hints != nil {
 		hints = append(hints, f.hints()...)
 	}
 	hints = append(hints, hint{"y", "copy link"}, hint{"w", "browser"})
-	if f.app.me != nil && c.Author != nil && c.Author.ID == f.app.me.ID {
+	if c.Translation != nil {
+		hints = append(hints, hint{"t", "original"})
+	} else if !f.app.isMine(c) {
+		hints = append(hints, hint{"t", "translate"})
+	}
+	if c.StarsCount > 0 {
+		hints = append(hints, hint{"S", "stars"})
+	}
+	if f.app.isMine(c) {
+		if c.ParentID == nil {
+			if c.IsPinned {
+				hints = append(hints, hint{"p", "unpin"})
+			} else {
+				hints = append(hints, hint{"p", "pin"})
+			}
+		}
 		hints = append(hints, hint{"D", "delete"})
 	}
 
@@ -479,6 +498,14 @@ func (f *commitFeed) commitKeys(event *tcell.EventKey) *tcell.EventKey {
 		f.app.push(newImageViewer(f.app, c.Images))
 	case 'D':
 		f.delete(c)
+	case 'p':
+		f.togglePin(c)
+	case 'v':
+		f.vote(c)
+	case 't':
+		f.toggleTranslation(c)
+	case 'S':
+		f.showStars(c)
 	case '!':
 		f.app.report(c)
 	default:
@@ -590,7 +617,7 @@ func (f *commitFeed) delete(c *api.Commit) {
 		return
 	}
 
-	f.app.confirm(fmt.Sprintf("Delete commit %s? It goes to /dev/null for good.", c.ShortHash), func() {
+	f.app.confirm(fmt.Sprintf("Delete commit %s? It goes to /dev/null; U brings it back for %d seconds.", c.ShortHash, api.RestoreWindow), func() {
 		f.app.act(func(ctx context.Context) error {
 			return f.app.client.DeleteCommit(ctx, c.ID)
 		}, func(err error) {
@@ -601,7 +628,8 @@ func (f *commitFeed) delete(c *api.Commit) {
 
 			delete(f.app.pendingReview, c.ID)
 			f.app.removeCommit(c.ID)
-			f.app.succeed("rm %s → /dev/null", c.ShortHash)
+			f.app.lastDeleted = &deleted{commit: c, at: time.Now()}
+			f.app.succeed("rm %s → /dev/null · U to undo", c.ShortHash)
 		})
 	})
 }

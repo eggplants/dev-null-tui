@@ -105,12 +105,17 @@ them.
 | `r` / `q` | Reply / quote |
 | `o` | Show / hide the replies under a commit |
 | `s` | Star |
+| `S` | List who starred it |
 | `P` | Give a pastel (in pastéis mode) |
 | `u` | Open the author's profile |
 | `y` | Copy the link (over SSH too, with OSC 52) |
 | `w` | Open in the browser |
 | `i` | View the images |
+| `v` | Vote on its poll |
+| `t` | Translate it into your language (set on the web), and back |
+| `p` | Pin your commit to your profile, or unpin it |
 | `D` | Delete your commit |
+| `U` | Undo the delete, for 30 seconds |
 | `!` | Report a commit |
 | `F` / `M` / `B` | Follow / mute / block (on a profile) |
 | `T` | Next profile tab: commits, replies, followers, following |
@@ -158,10 +163,8 @@ The TUI can do whatever the [signed API](https://github.com/nunomaduro/dev-null.
 Features that only the web has are out of reach for now:
 - search
 - remotes (messages and orgs)
-- polls (voting and creating them)
-- pinning
+- creating polls
 - scheduled commits
-- translations
 - quote with images
 
 And the `devnull://` handler only gets registered on Linux.

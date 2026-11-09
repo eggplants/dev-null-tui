@@ -8,6 +8,7 @@ import (
 	"io"
 	"net"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/gdamore/tcell/v2"
@@ -106,6 +107,12 @@ type App struct {
 	pollEvery chan time.Duration
 	// protocol is how the terminal draws images, for the settings to say.
 	protocol graphicsProtocol
+
+	// lastDeleted is the commit the user deleted last, which U brings back for a while.
+	lastDeleted *deleted
+	// language is the language the user has commits translated into, once asked for.
+	settingsMu sync.Mutex
+	language   string
 
 	// commitWithImages sends a commit with images, signed with an SSH key on the user's GitHub account.
 	commitWithImages func(ctx context.Context, opts commit.Options) (string, error)
@@ -864,6 +871,9 @@ func (a *App) updateCommit(updated *api.Commit) {
 				if updated.Status != "" {
 					c.Status = updated.Status
 				}
+				if updated.Poll != nil {
+					c.Poll = updated.Poll
+				}
 			})
 			h.Invalidate()
 		}
@@ -1013,6 +1023,8 @@ func (a *App) globalKeys(event *tcell.EventKey) *tcell.EventKey {
 		}
 	case r == 'c':
 		a.compose(composeOptions{})
+	case r == 'U':
+		a.undoDelete()
 	case r == '/':
 		a.jump()
 	case r == '?':
@@ -1079,9 +1091,12 @@ func helpText() string {
 		row("r", "reply", "q", "quote")+
 		row("o", "show / hide replies", "w", "open in browser")+
 		row("s", "star / unstar", "P", "give a pastel")+
-		row("u", "author's profile", "", "")+
+		row("u", "author's profile", "S", "who starred it")+
 		row("y", "copy the link", "i", "view the images")+
-		row("D", "delete yours", "!", "report")+
+		row("t", "translate", "v", "vote on its poll")+
+		row("p", "pin yours", "", "")+
+		row("D", "delete yours", "U", "undo the delete")+
+		row("!", "report", "", "")+
 		"\n"+section("Profile")+
 		row("F", "follow / unfollow", "T", "next tab")+
 		row("M", "mute / unmute", "B", "block")+

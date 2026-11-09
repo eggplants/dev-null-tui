@@ -270,6 +270,13 @@ func authorLine(c *api.Commit) string {
 	if c.IsPinned {
 		line += fmt.Sprintf(" [%s]· ◇ pinned[-]", colorMuted)
 	}
+	if t := c.Translation; t != nil && t.Translated != nil {
+		from := "translated"
+		if t.SourceName != "" {
+			from = "translated from " + t.SourceName
+		}
+		line += fmt.Sprintf(" [%s]· %s[-]", colorMuted, tview.Escape(from))
+	}
 
 	return line
 }
@@ -339,10 +346,13 @@ func commitLayout(c *api.Commit, selected, full bool, width int) layout {
 	}
 	lines := wrapIndent(spread(head, hash(c), inner), gutter(selected, node, color), rail, width)
 
-	segments := c.BodySegments
-	excerpt := !full && c.PreviewSegments != nil
+	segments, preview := c.BodySegments, c.PreviewSegments
+	if t := c.Translation; t != nil && t.Translated != nil {
+		segments, preview = t.Translated.BodySegments, t.Translated.PreviewSegments
+	}
+	excerpt := !full && preview != nil
 	if excerpt {
-		segments = c.PreviewSegments
+		segments = preview
 	}
 	body := bodyLines(segments, c.Body, c.Mentions, inner)
 	switch {
@@ -464,7 +474,7 @@ func pollLines(p *api.Poll, width int) []string {
 		facts = append(facts, "closes "+p.ClosesAt.Local().Format("Jan 2 15:04"))
 	}
 	if !p.IsClosed && !p.HasVoted {
-		facts = append(facts, "vote on the web")
+		facts = append(facts, "v to vote")
 	}
 
 	return append(lines, wrap(fmt.Sprintf("[%s]%s[-]", colorMuted, strings.Join(facts, " · ")), "", width)...)

@@ -36,6 +36,15 @@ func (f *searchAPI) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			"created_at": time.Now().Add(-time.Hour).Format(time.RFC3339),
 			"author":     map[string]any{"type": "user", "id": "u1", "handle": "alice", "name": "Alice"},
 		})
+	case "GET /api/v1/search/mentions":
+		f.queries = append(f.queries, "mentions:"+r.URL.Query().Get("q"))
+		out = page(map[string]any{"id": "u2", "handle": "octavia", "name": "Octavia"})
+	case "GET /api/v1/search/issues":
+		if r.URL.Query().Get("q") == "1363" {
+			out = map[string]any{"issue": map[string]any{"number": 1363, "title": "[RFC] Gists", "url": "https://github.com/dev-null-sh/dev-null.sh/issues/1363"}}
+		} else {
+			out = map[string]any{"issue": nil}
+		}
 	case "GET /api/v1/search/profiles":
 		f.queries = append(f.queries, "profiles:"+r.URL.Query().Get("q"))
 		out = map[string]any{
@@ -90,4 +99,48 @@ func TestSearchesOnlyPeopleForAShortTerm(t *testing.T) {
 			t.Error("searched commits for a term the API turns down")
 		}
 	}
+}
+
+func TestCompletesMentionsTheAPISuggests(t *testing.T) {
+	f := &searchAPI{}
+	h := start(t, f)
+	h.waitFor("Following")
+
+	h.typeText("c")
+	h.waitFor("New commit")
+	h.typeText("thanks @oc")
+	h.waitFor("tab @octavia")
+	h.key(tcell.KeyTab)
+	h.waitFor("thanks @octavia")
+
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	// Only the last of the keys typed quickly asks.
+	asked := 0
+	for _, q := range f.queries {
+		if q == "mentions:o" || q == "mentions:" {
+			t.Errorf("asked for %s while still typing", q)
+		}
+		if q == "mentions:oc" {
+			asked++
+		}
+	}
+	if asked != 1 {
+		t.Errorf("asked %v", f.queries)
+	}
+}
+
+func TestCompletesAnIssueToItsLink(t *testing.T) {
+	h := start(t, &searchAPI{})
+	h.waitFor("Following")
+
+	h.typeText("c")
+	h.waitFor("New commit")
+	h.typeText("see #1363")
+	h.waitFor("#1363 [RFC] Gists")
+	h.key(tcell.KeyTab)
+	h.waitFor("see https://github.com/dev-null-sh/dev-null.sh/issues/1363")
+
+	h.typeText("and #99")
+	h.waitFor("/dev/null has no issue #99")
 }

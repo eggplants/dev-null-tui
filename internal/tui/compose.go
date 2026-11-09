@@ -6,6 +6,7 @@ import (
 	"html"
 	"path/filepath"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 	"unicode/utf8"
@@ -111,7 +112,66 @@ func (a *App) compose(opts composeOptions) {
 	}
 
 	var mention *mentionState
-	updateCounter := func() {
+	var issue *issueState
+	// asking counts the suggestions asked for, so only the last of a quick run of keys is sent.
+	asking := 0
+	var updateCounter func()
+	// issues are the /dev/null issues found for each #number typed so far, nil for none.
+	issues := map[int]*api.Issue{}
+	suggestIssue := func(number int) {
+		asking++
+		ask := asking
+		time.AfterFunc(mentionDelay, func() {
+			a.tv.QueueUpdate(func() {
+				if ask != asking {
+					return
+				}
+				var found *api.Issue
+				a.async(func(ctx context.Context) (err error) {
+					found, err = a.client.SuggestIssue(ctx, number)
+					return err
+				}, func(err error) {
+					if err == nil {
+						issues[number] = found
+						updateCounter()
+					}
+				})
+			})
+		})
+	}
+	// suggested are the people the API suggests for each mention typed so far.
+	suggested := map[string][]api.User{}
+	suggestMentions := func(prefix string) {
+		asking++
+		ask := asking
+		time.AfterFunc(mentionDelay, func() {
+			a.tv.QueueUpdate(func() {
+				if ask != asking {
+					return
+				}
+				var found []api.User
+				a.async(func(ctx context.Context) (err error) {
+					reply, quote := "", ""
+					if opts.parent != nil {
+						reply = opts.parent.ID
+					}
+					if opts.quoted != nil {
+						quote = opts.quoted.ID
+					}
+					found, err = a.client.SuggestMentions(ctx, prefix, reply, quote)
+					return err
+				}, func(err error) {
+					// Suggestions only add to the people on screen, so one that fails goes without.
+					if err != nil {
+						return
+					}
+					suggested[prefix] = found
+					updateCounter()
+				})
+			})
+		})
+	}
+	updateCounter = func() {
 		n, oversized := bodyLength(area.GetText())
 		color := colorMuted
 		if n > maxBodyLength || oversized {
@@ -136,10 +196,28 @@ func (a *App) compose(opts composeOptions) {
 		attached.SetText(strings.Join(lines, "\n"))
 
 		mention = a.mentionAt(area.TextArea)
-		if mention == nil {
-			completions.SetText(fmt.Sprintf("[%s]@ and tab completes a name[-]", colorFaint))
-		} else {
+		if mention != nil {
+			if found, ok := suggested[mention.prefix]; ok {
+				mention.add(found)
+			} else {
+				suggestMentions(mention.prefix)
+			}
+		}
+		issue = issueAt(area.TextArea)
+		if issue != nil {
+			if found, ok := issues[issue.number]; ok {
+				issue.found, issue.checked = found, true
+			} else {
+				suggestIssue(issue.number)
+			}
+		}
+		switch {
+		case mention != nil:
 			completions.SetText(mention.line(composeWidth - 2))
+		case issue != nil:
+			completions.SetText(issue.line(composeWidth - 2))
+		default:
+			completions.SetText(fmt.Sprintf("[%s]@ and tab completes a name, # an issue[-]", colorFaint))
 		}
 		if showingPreview {
 			updatePreview()
@@ -220,6 +298,10 @@ func (a *App) compose(opts composeOptions) {
 				mention.complete(area.TextArea)
 				return nil
 			}
+			if issue != nil && issue.found != nil {
+				area.Replace(issue.start, issue.end, issue.found.URL+" ")
+				return nil
+			}
 			return event
 		case tcell.KeyCtrlP:
 			showingPreview = !showingPreview
@@ -290,6 +372,59 @@ func authorUsername(c *api.Commit) string {
 
 	return c.Author.Username
 }
+
+// issueState is a #number being typed, and the issue it is, once found.
+type issueState struct {
+	start, end int
+	number     int
+	found      *api.Issue
+	// checked is set once the API answered, with found nil when there is no such issue.
+	checked bool
+}
+
+// issueAt finds the #number the cursor is at the end of, if it is.
+func issueAt(area *tview.TextArea) *issueState {
+	text := area.GetText()
+	_, cursor, _ := area.GetSelection()
+	if cursor > len(text) {
+		return nil
+	}
+
+	start := cursor
+	for start > 0 && text[start-1] >= '0' && text[start-1] <= '9' {
+		start--
+	}
+	if start == cursor || start == 0 || text[start-1] != '#' || text[start] == '0' || cursor-start > 10 {
+		return nil
+	}
+	start--
+	if start > 0 {
+		if r, _ := utf8.DecodeLastRuneInString(text[:start]); r != ' ' && r != '\n' && r != '(' {
+			return nil
+		}
+	}
+
+	number, err := strconv.Atoi(text[start+1 : cursor])
+	if err != nil {
+		return nil
+	}
+
+	return &issueState{start: start, end: cursor, number: number}
+}
+
+func (i *issueState) line(width int) string {
+	switch {
+	case i.found == nil && i.checked:
+		return fmt.Sprintf("[%s]/dev/null has no issue #%d[-]", colorFaint, i.number)
+	case i.found == nil:
+		return fmt.Sprintf("[%s]#%d: looking for the /dev/null issue…[-]", colorFaint, i.number)
+	}
+
+	return truncateLines([]string{fmt.Sprintf("[%s::b]tab[-::-] [%s::b]#%d[-::-] [%s]%s[-]", colorInk, colorPrimary, i.found.Number, colorMuted, tview.Escape(i.found.Title))}, 1)[0]
+}
+
+// mentionDelay is how long the composer waits for the next key before asking whom a mention being typed could be.
+const mentionDelay = 250 * time.Millisecond
 
 // composeWidth is the composer's width, border included.
 const composeWidth = 78
@@ -409,8 +544,27 @@ func (a *App) pasteImage(attach func(attachment)) {
 // mentionState is an @name being typed, and the people it could be.
 type mentionState struct {
 	start, end int
-	matches    []*api.User
-	index      int
+	// prefix is what was typed after the @, in lower case.
+	prefix  string
+	matches []*api.User
+	index   int
+}
+
+// maxMentionMatches is how many people a mention being typed suggests.
+const maxMentionMatches = 5
+
+// add suggests more people after those already suggested, as the API finds them.
+func (m *mentionState) add(people []api.User) {
+	seen := map[string]bool{}
+	for _, u := range m.matches {
+		seen[strings.ToLower(u.Username)] = true
+	}
+	for i := range people {
+		if u := &people[i]; len(m.matches) < maxMentionMatches && !seen[strings.ToLower(u.Username)] {
+			seen[strings.ToLower(u.Username)] = true
+			m.matches = append(m.matches, u)
+		}
+	}
 }
 
 // mentionAt finds the @name the cursor is in, and who it could be among the people already on screen.
@@ -444,7 +598,7 @@ func (a *App) mentionAt(area *tview.TextArea) *mentionState {
 	}
 
 	prefix := strings.ToLower(text[start+1 : cursor])
-	return &mentionState{start: start, end: cursor, matches: a.peopleMatching(prefix)}
+	return &mentionState{start: start, end: cursor, prefix: prefix, matches: a.peopleMatching(prefix)}
 }
 
 // peopleMatching finds the people on screen whose username starts with prefix first, then those whose name has it.
@@ -491,12 +645,12 @@ func (a *App) peopleMatching(prefix string) []*api.User {
 	sort.Slice(byFullName, func(i, j int) bool { return byFullName[i].Username < byFullName[j].Username })
 
 	matches := append(byName, byFullName...)
-	return matches[:min(len(matches), 5)]
+	return matches[:min(len(matches), maxMentionMatches)]
 }
 
 func (m *mentionState) line(width int) string {
 	if len(m.matches) == 0 {
-		return fmt.Sprintf("[%s]nobody on screen goes by that[-]", colorFaint)
+		return fmt.Sprintf("[%s]nobody goes by that[-]", colorFaint)
 	}
 
 	parts := []string{fmt.Sprintf("[%s::b]tab[-::-]", colorInk)}

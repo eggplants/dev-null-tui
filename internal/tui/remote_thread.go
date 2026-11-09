@@ -13,7 +13,7 @@ import (
 )
 
 // remoteEvery is how often an open remote asks for new messages, about as often as the web polls one.
-const remoteEvery = 4 * time.Second
+var remoteEvery = 4 * time.Second
 
 // remoteThread is a remote or an org: its messages, oldest at the top and the newest at the bottom, as a chat has them.
 type remoteThread struct {
@@ -36,6 +36,8 @@ type remoteThread struct {
 	// generation tells answers to an earlier Reload apart, and polling whether the thread polls for new messages.
 	generation int
 	polling    bool
+	// asking are the messages whose link cards are being read again.
+	asking map[int64]bool
 }
 
 func newRemoteThread(app *App, remote api.Remote, title string) *remoteThread {
@@ -88,7 +90,7 @@ func (t *remoteThread) Reload() {
 		t.markRead()
 		if !t.polling {
 			t.polling = true
-			go t.poll()
+			go t.poll(remoteEvery)
 		}
 	})
 }
@@ -144,8 +146,9 @@ func (t *remoteThread) typing() string {
 }
 
 // poll asks for new messages and reactions while the thread is on screen, and stops once it's closed.
-func (t *remoteThread) poll() {
-	ticker := time.NewTicker(remoteEvery)
+// The interval is handed in, read on the UI goroutine.
+func (t *remoteThread) poll(every time.Duration) {
+	ticker := time.NewTicker(every)
 	defer ticker.Stop()
 
 	for range ticker.C {
@@ -159,7 +162,10 @@ func (t *remoteThread) poll() {
 			return
 		}
 		if <-shown {
-			t.app.tv.QueueUpdate(t.fetchNew)
+			t.app.tv.QueueUpdate(func() {
+				t.fetchNew()
+				t.fetchPendingPreviews()
+			})
 		}
 	}
 }
@@ -221,6 +227,33 @@ func (t *remoteThread) mergeNew(thread *api.RemoteThread) {
 	}
 	t.updateFooter()
 	t.Invalidate()
+}
+
+// fetchPendingPreviews reads again the link cards still being made, as the web does while they are.
+func (t *remoteThread) fetchPendingPreviews() {
+	for _, m := range t.items {
+		if m.LinkPreview == nil || !m.LinkPreview.IsPending || t.asking[m.ID] {
+			continue
+		}
+		m := m
+		if t.asking == nil {
+			t.asking = map[int64]bool{}
+		}
+		t.asking[m.ID] = true
+		var lp *api.LinkPreview
+		t.app.async(func(ctx context.Context) (err error) {
+			lp, err = t.app.client.MessageLinkPreview(ctx, m.ID)
+			return err
+		}, func(err error) {
+			delete(t.asking, m.ID)
+			if err != nil {
+				return
+			}
+			// A card that couldn't be made goes away.
+			m.LinkPreview = lp
+			t.Invalidate()
+		})
+	}
 }
 
 // loadOlder reads the page before the oldest message on screen, keeping the selection where it was.
@@ -360,7 +393,9 @@ func (t *remoteThread) render(m *api.Message, selected bool, width int) []string
 		d := time.Duration(v.DurationMS) * time.Millisecond
 		lines = append(lines, rail+fmt.Sprintf("[%s]♪ voice note %d:%02d · w plays it in the browser[-]", colorMuted, int(d.Minutes()), int(d.Seconds())%60))
 	}
-	if lp := m.LinkPreview; lp != nil && lp.Title != "" {
+	if lp := m.LinkPreview; lp != nil && lp.IsPending {
+		lines = append(lines, rail+fmt.Sprintf("[%s]↗ reading the link…[-]", colorFaint))
+	} else if lp != nil && lp.Title != "" {
 		lines = append(lines, prefixed(rail, boxed(linkPreviewLines(lp, inner-4), inner))...)
 	}
 	if len(m.Reactions) > 0 {

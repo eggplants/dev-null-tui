@@ -23,6 +23,8 @@ type remotesAPI struct {
 	reacted  []string
 	messages []map[string]any
 	roles    []string
+	// pending keeps the first message's link card pending until it's read again.
+	pending bool
 }
 
 func (f *remotesAPI) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -35,7 +37,7 @@ func (f *remotesAPI) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	at := time.Now().Add(-time.Hour).Format(time.RFC3339)
 	if f.messages == nil {
 		f.messages = []map[string]any{
-			{"id": 1, "user_id": "u1", "body": "hey, how's the TUI?", "created_at": at},
+			{"id": 1, "user_id": "u1", "body": "hey, how's the TUI? https://example.com", "created_at": at, "link_preview": map[string]any{"url": "https://example.com", "is_pending": f.pending}},
 			{"id": 2, "user_id": "u0", "body": "almost there", "created_at": at, "reactions": []any{map[string]any{"user_id": "u1", "emoji": "🎉"}}},
 		}
 	}
@@ -122,6 +124,8 @@ func (f *remotesAPI) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		f.roles = append(f.roles, in["role"])
 		w.WriteHeader(http.StatusNoContent)
 		return
+	case "GET /api/v1/remotes/messages/1/link-preview":
+		out = map[string]any{"link_preview": map[string]any{"url": "https://example.com", "title": "Example Domain", "site_name": "example.com"}}
 	case "GET /api/v1/remotes/reactions":
 		out = map[string]any{"usage": []string{"🔥"}}
 	case "POST /api/v1/remotes/messages/1/reactions":
@@ -255,4 +259,19 @@ func TestManagesAnOrg(t *testing.T) {
 	if len(f.roles) != 1 || f.roles[0] != "maintainer" {
 		t.Errorf("set roles %v", f.roles)
 	}
+}
+
+func TestReadsALinkCardAgainWhileItIsMade(t *testing.T) {
+	every := remoteEvery
+	remoteEvery = 50 * time.Millisecond
+	t.Cleanup(func() { remoteEvery = every })
+
+	h := start(t, &remotesAPI{pending: true})
+	h.waitFor("Following")
+
+	h.typeText("gm")
+	h.waitFor("hey, how's the TUI?")
+	h.key(tcell.KeyEnter)
+	h.waitFor("reading the link")
+	h.waitFor("Example Domain")
 }

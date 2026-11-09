@@ -25,6 +25,8 @@ type CurrentUserData struct {
 	PreferredLane *int       `json:"preferred_lane"`
 	AutomaticLane int        `json:"automatic_lane"`
 	SyncedAt      *time.Time `json:"github_synced_at"`
+	// Remotes are the user's settings for remotes, nil while they are off.
+	Remotes *RemotesSettings `json:"remotes"`
 }
 
 type Log string

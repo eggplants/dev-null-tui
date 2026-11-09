@@ -81,7 +81,7 @@ approve it there, the browser sends a one-time code back through a `devnull://` 
 every request is signed with that key ([SSHSIG](https://github.com/openssh/openssh-portable/blob/master/PROTOCOL.sshsig),
 namespace `devnull-api`).
 
-To revoke it, go to [`Settings → Devices`](https://dev-null.sh/settings/devices).
+To revoke it, go to `g s` → Devices, or [`Settings → Devices`](https://dev-null.sh/settings/devices) on the web.
 
 On Linux, `login` registers `dn` as the desktop's handler for `devnull://` links. If you move the binary, run `login` again.
 
@@ -139,8 +139,9 @@ In the composer:
 
 ### Settings
 
-`g s` in the TUI picks your color, turns pastéis mode on or off, takes your profile from GitHub again, and lists who
-you mute and block. The theme follows the terminal's background unless you pick one.
+`g s` in the TUI picks your color, turns pastéis mode on or off, picks the language `t` translates into and whether
+commits are translated by themselves, sets your timezone, says you're live on your stream, takes your profile from
+GitHub again, lists who you mute and block, and lists the devices that sign in as you, to revoke one. The theme follows the terminal's background unless you pick one.
 
 It also switches the settings below, which take effect at once (`graphics` from the next start) and are kept in
 `settings.json` next to the config. You can edit that file too; environment variables override it:

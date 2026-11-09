@@ -57,6 +57,9 @@ func profileLines(p *api.Profile, me string, pasteisLeft, width int) []string {
 	head := fmt.Sprintf("%s  [%s::b]%s[-::-] [%s]@%s[-]", strings.Repeat(" ", profileAvatarCol+profileAvatarCols-1), colorInk, tview.Escape(name), colorMuted, tview.Escape(u.Username))
 
 	var pills []string
+	if u.Live != nil {
+		pills = append(pills, pill("● live on "+u.Live.Platform, colorDanger))
+	}
 	switch {
 	case u.Username == me:
 		pills = append(pills, pill("you", colorMuted))

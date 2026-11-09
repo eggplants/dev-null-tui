@@ -31,6 +31,8 @@ type settingsView struct {
 	app *App
 	// lane is the lane picked with ← and →, before Enter saves it: -1 is the automatic one.
 	lane int
+	// settings are the settings only the user sees, once read.
+	settings *api.Settings
 }
 
 func newSettings(app *App) *settingsView {
@@ -40,7 +42,7 @@ func newSettings(app *App) *settingsView {
 	}
 
 	s.listView = newListView(s.render)
-	s.SetItems([]*setting{
+	rows := []*setting{
 		{
 			label: "Color",
 			value: s.laneValue,
@@ -93,7 +95,10 @@ func newSettings(app *App) *settingsView {
 			value: func() string { return app.client.BaseURL },
 			help:  "dn login -base-url picks another",
 		},
-	})
+	}
+	// The account's other settings go after the ones kept on this machine, with the profile and the people.
+	rows = append(rows[:7:7], append(s.accountSettings(), rows[7:]...)...)
+	s.SetItems(rows)
 	s.onActivate = func() {
 		if item, ok := s.Selected(); ok && item.enter != nil {
 			item.enter()
@@ -112,7 +117,10 @@ func onOff(on bool) string {
 }
 
 func (s *settingsView) Title() string { return "Settings" }
-func (s *settingsView) Reload()       { s.Invalidate() }
+func (s *settingsView) Reload() {
+	s.Invalidate()
+	s.loadSettings()
+}
 
 func (s *settingsView) Hints() []hint {
 	hints := []hint{{"j/k", "move"}}

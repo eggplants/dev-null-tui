@@ -164,12 +164,8 @@ Features that only the web has are out of reach for now:
 - remotes (messages and orgs)
 - creating polls
 - scheduled commits
-- quote with images
 
 And the `devnull://` handler only gets registered on Linux.
-
-The signed API only accepts JSON. So a commit with images is sent the same way `dn commit --image` sends it, signed
-with an SSH key on your GitHub account, and that key has to be in your SSH agent or `~/.ssh`.
 
 ## License
 

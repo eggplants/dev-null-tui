@@ -76,7 +76,7 @@ func Run(ctx context.Context, opts Options) (string, error) {
 	// Read each image once, so what is hashed and signed is what is sent.
 	images := make([]image, 0, len(opts.Images))
 	for _, path := range opts.Images {
-		data, err := readImage(path)
+		data, err := ReadImage(path)
 		if err != nil {
 			return "", err
 		}
@@ -169,7 +169,8 @@ func checkBaseURL(base string) error {
 	}
 }
 
-func readImage(path string) ([]byte, error) {
+// ReadImage reads an image to attach to a commit, refusing one larger than MaxImageSize.
+func ReadImage(path string) ([]byte, error) {
 	info, err := os.Stat(path)
 	if err != nil || !info.Mode().IsRegular() {
 		return nil, fmt.Errorf("could not read the image %s", path)

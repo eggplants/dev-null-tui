@@ -7,7 +7,6 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
-	"time"
 	"unicode/utf8"
 
 	"github.com/gdamore/tcell/v2"
@@ -146,7 +145,7 @@ func (a *App) compose(opts composeOptions) {
 		updateCounter()
 	}
 	area.pasted = func(text string) bool {
-		if opts.quoted != nil || len(images) >= commit.MaxImages || strings.Contains(strings.TrimSpace(text), "\n") {
+		if len(images) >= commit.MaxImages || strings.Contains(strings.TrimSpace(text), "\n") {
 			return false
 		}
 		img, err := checkImage(text)
@@ -209,22 +208,16 @@ func (a *App) compose(opts composeOptions) {
 			a.editInEditor(area.TextArea)
 			return nil
 		case tcell.KeyCtrlO:
-			switch {
-			case opts.quoted != nil:
-				a.fail("A quote can't carry images.")
-			case len(images) >= commit.MaxImages:
+			if len(images) >= commit.MaxImages {
 				a.fail("A commit can carry up to %d images.", commit.MaxImages)
-			default:
+			} else {
 				a.pickImage(attach)
 			}
 			return nil
 		case tcell.KeyCtrlV:
-			switch {
-			case opts.quoted != nil:
-				a.fail("A quote can't carry images.")
-			case len(images) >= commit.MaxImages:
+			if len(images) >= commit.MaxImages {
 				a.fail("A commit can carry up to %d images.", commit.MaxImages)
-			default:
+			} else {
 				a.pasteImage(attach)
 			}
 			return nil
@@ -486,12 +479,8 @@ func (m *mentionState) complete(area *tview.TextArea) {
 
 // submit sends the draft and closes the composer, or calls failed and leaves it open so the draft can be fixed.
 func (a *App) submit(body string, opts composeOptions, images []attachment, failed, sent func()) {
-	if len(images) > 0 {
-		a.submitWithImages(body, opts, images, failed, sent)
-		return
-	}
-
-	if !a.checkLength(body) {
+	// A commit with images may go without words, as on the web.
+	if (len(images) == 0 || body != "") && !a.checkLength(body) {
 		failed()
 		return
 	}
@@ -504,9 +493,24 @@ func (a *App) submit(body string, opts composeOptions, images []attachment, fail
 		draft.QuotedCommitID = opts.quoted.ID
 	}
 
+	timeout := apiTimeout
+	if len(images) > 0 {
+		// Uploads can take longer than the API's usual timeout.
+		timeout = uploadTimeout
+		a.flash("Uploading %d image%s…", len(images), plural(len(images)))
+	}
+
 	var created *api.Commit
-	a.act(func(ctx context.Context) (err error) {
-		created, err = a.client.CreateCommit(ctx, draft)
+	a.actFor(timeout, func(ctx context.Context) (err error) {
+		if len(images) == 0 {
+			created, err = a.client.CreateCommit(ctx, draft)
+			return err
+		}
+		files, err := readAttachments(images)
+		if err != nil {
+			return err
+		}
+		created, err = a.client.CreateCommitWithImages(ctx, draft, files)
 		return err
 	}, func(err error) {
 		if err != nil {
@@ -563,54 +567,4 @@ func (a *App) checkLength(body string) bool {
 	}
 
 	return false
-}
-
-// submitWithImages sends a commit with images the way `dn commit --image` does, signed with an SSH key on the
-// user's GitHub account: the signed API only takes JSON, so it can't carry images.
-func (a *App) submitWithImages(body string, opts composeOptions, images []attachment, failed, sent func()) {
-	if body == "" {
-		a.fail("A commit with images needs some text.")
-		failed()
-		return
-	}
-	if !a.checkLength(body) {
-		failed()
-		return
-	}
-
-	options := commit.Options{BaseURL: a.client.BaseURL, Message: body, Passphrase: a.askPassphrase}
-	if opts.parent != nil {
-		options.ReplyTo = opts.parent.ID
-	}
-	for _, img := range images {
-		options.Images = append(options.Images, img.path)
-	}
-
-	a.flash("Uploading %d image%s…", len(images), plural(len(images)))
-	a.busy++
-	a.spin()
-	var answer string
-	go func() {
-		// Uploads can take longer than the API's usual timeout.
-		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
-		defer cancel()
-
-		var err error
-		answer, err = a.commitWithImages(ctx, options)
-		a.tv.QueueUpdateDraw(func() {
-			a.busy--
-			if err != nil {
-				a.flashError(err)
-				failed()
-				return
-			}
-
-			sent()
-			a.closeModal("compose")
-			a.succeed("%s", tview.Escape(strings.TrimSpace(answer)))
-			if opts.done != nil {
-				opts.done(nil)
-			}
-		})
-	}()
 }

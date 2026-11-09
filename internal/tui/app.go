@@ -15,7 +15,6 @@ import (
 	"github.com/rivo/tview"
 
 	"github.com/eggplants/dev-null-tui/internal/api"
-	"github.com/eggplants/dev-null-tui/internal/commit"
 )
 
 // view is a screen of the TUI: a tab's root or something opened from it, like a thread or a profile.
@@ -113,9 +112,6 @@ type App struct {
 	// language is the language the user has commits translated into, once asked for.
 	settingsMu sync.Mutex
 	language   string
-
-	// commitWithImages sends a commit with images, signed with an SSH key on the user's GitHub account.
-	commitWithImages func(ctx context.Context, opts commit.Options) (string, error)
 }
 
 func New(client *api.Client) *App {
@@ -133,9 +129,8 @@ func NewWithOptions(client *api.Client, opts Options) *App {
 		crumbs: tview.NewBox(),
 		status: tview.NewBox(),
 
-		pendingReview:    map[string]*api.Commit{},
-		pollEvery:        make(chan time.Duration, 1),
-		commitWithImages: commit.Run,
+		pendingReview: map[string]*api.Commit{},
+		pollEvery:     make(chan time.Duration, 1),
 	}
 	a.body = newColumn(maxColumnWidth)
 	a.body.aside = a.drawAside
@@ -717,11 +712,21 @@ func errorMessage(err error) string {
 	return err.Error()
 }
 
+// apiTimeout is how long the API gets to answer, and uploadTimeout how long a commit with images may take.
+const (
+	apiTimeout    = 30 * time.Second
+	uploadTimeout = 10 * time.Minute
+)
+
 // async runs work off the UI goroutine and then done on it with work's error, which it flashes unless done
 // handles it.
 func (a *App) async(work func(ctx context.Context) error, done func(err error)) {
+	a.asyncFor(apiTimeout, work, done)
+}
+
+func (a *App) asyncFor(timeout time.Duration, work func(ctx context.Context) error, done func(err error)) {
 	go func() {
-		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		ctx, cancel := context.WithTimeout(context.Background(), timeout)
 		defer cancel()
 
 		err := work(ctx)
@@ -737,9 +742,13 @@ func (a *App) async(work func(ctx context.Context) error, done func(err error)) 
 
 // act runs an action the user waits on like async, spinning the spinner until it's done.
 func (a *App) act(work func(ctx context.Context) error, done func(err error)) {
+	a.actFor(apiTimeout, work, done)
+}
+
+func (a *App) actFor(timeout time.Duration, work func(ctx context.Context) error, done func(err error)) {
 	a.busy++
 	a.spin()
-	a.async(work, func(err error) {
+	a.asyncFor(timeout, work, func(err error) {
 		a.busy--
 		if done != nil {
 			done(err)

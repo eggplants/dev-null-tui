@@ -1,11 +1,15 @@
 package tui
 
 import (
+	"bytes"
 	"context"
 	"crypto/ed25519"
 	"crypto/rand"
 	"encoding/json"
+	"fmt"
 	"io"
+	"mime"
+	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -24,6 +28,31 @@ type fakeAPI struct {
 	mu      sync.Mutex
 	starred bool
 	bodies  []string
+	drafts  []api.NewCommit
+	// images are the names and sizes of the images sent with each commit.
+	images [][]string
+}
+
+// readMultipart reads a commit sent with images, returning its JSON payload and keeping what images came with it.
+func (f *fakeAPI) readMultipart(r *http.Request, body []byte) []byte {
+	_, params, _ := mime.ParseMediaType(r.Header.Get("Content-Type"))
+	form, err := multipart.NewReader(bytes.NewReader(body), params["boundary"]).ReadForm(32 << 20)
+	if err != nil {
+		return nil
+	}
+
+	var payload []byte
+	if fh := form.File["payload"]; len(fh) == 1 {
+		file, _ := fh[0].Open()
+		payload, _ = io.ReadAll(file)
+	}
+	var images []string
+	for _, fh := range form.File["images[]"] {
+		images = append(images, fmt.Sprintf("%s %d", fh.Filename, fh.Size))
+	}
+	f.images = append(f.images, images)
+
+	return payload
 }
 
 func (f *fakeAPI) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -62,8 +91,12 @@ func (f *fakeAPI) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	case "POST /api/v1/commits":
 		var in api.NewCommit
 		body, _ := io.ReadAll(r.Body)
+		if strings.HasPrefix(r.Header.Get("Content-Type"), "multipart/") {
+			body = f.readMultipart(r, body)
+		}
 		_ = json.Unmarshal(body, &in)
 		f.bodies = append(f.bodies, in.Body)
+		f.drafts = append(f.drafts, in)
 		w.WriteHeader(http.StatusCreated)
 		out = map[string]any{"data": map[string]any{"id": "c2", "short_hash": "9999999", "body": in.Body, "status": "pending", "author": me}}
 	default:

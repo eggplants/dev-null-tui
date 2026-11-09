@@ -15,6 +15,7 @@ import (
 	"github.com/rivo/tview"
 	"github.com/rivo/uniseg"
 
+	"github.com/eggplants/dev-null-tui/internal/api"
 	"github.com/eggplants/dev-null-tui/internal/commit"
 )
 
@@ -180,33 +181,16 @@ func (a *App) pickImage(add func(attachment)) {
 	a.openModal("attach", centered(form, 70, 5))
 }
 
-// askPassphrase asks for a private key's passphrase in a dialog. It is called off the UI goroutine, from the
-// commit being sent, and waits for the answer.
-func (a *App) askPassphrase(path string) ([]byte, error) {
-	answer := make(chan []byte, 1)
-
-	a.tv.QueueUpdateDraw(func() {
-		field := tview.NewInputField().SetLabel("Passphrase ").SetMaskCharacter('*')
-		field.SetDoneFunc(func(key tcell.Key) {
-			a.closeModal("passphrase")
-			if key == tcell.KeyEnter {
-				answer <- []byte(field.GetText())
-			} else {
-				answer <- nil
-			}
-		})
-
-		form := tview.NewFlex().SetDirection(tview.FlexRow).
-			AddItem(tview.NewTextView().SetText(tview.Escape(path)), 1, 0, false).
-			AddItem(field, 1, 0, true)
-		form.SetBorder(true).SetTitle(" Unlock your SSH key ")
-
-		a.openModal("passphrase", centered(form, 70, 4))
-	})
-
-	if pass := <-answer; pass != nil {
-		return pass, nil
+// readAttachments reads the images picked for a commit, to send them.
+func readAttachments(images []attachment) ([]api.File, error) {
+	files := make([]api.File, len(images))
+	for i, img := range images {
+		data, err := commit.ReadImage(img.path)
+		if err != nil {
+			return nil, err
+		}
+		files[i] = api.File{Name: filepath.Base(img.path), Data: data}
 	}
 
-	return nil, errors.New("no passphrase given: add the key to your SSH agent with ssh-add")
+	return files, nil
 }

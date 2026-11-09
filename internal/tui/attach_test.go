@@ -1,13 +1,11 @@
 package tui
 
 import (
-	"context"
 	"os"
 	"path/filepath"
 	"runtime"
 	"slices"
 	"strings"
-	"sync"
 	"testing"
 
 	"github.com/gdamore/tcell/v2"
@@ -84,36 +82,14 @@ func TestCheckImage(t *testing.T) {
 	}
 }
 
-// recorder stands in for sending a commit with images, so nothing leaves the test.
-type recorder struct {
-	mu   sync.Mutex
-	sent []commit.Options
-	pass []byte
-}
-
-func (r *recorder) commit(_ context.Context, opts commit.Options) (string, error) {
-	// Ask for a passphrase the way an encrypted key does, to drive the dialog.
-	pass, err := opts.Passphrase("/home/me/.ssh/id_ed25519")
-	if err != nil {
-		return "", err
-	}
-
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	r.sent = append(r.sent, opts)
-	r.pass = pass
-
-	return "Committed: https://dev-null.sh/@me/commits/c9 (pending review, only you can see it until it is approved)\n", nil
-}
-
 func TestAttachesImagesToAReply(t *testing.T) {
 	image := filepath.Join(t.TempDir(), "shot.png")
 	if err := os.WriteFile(image, make([]byte, 2048), 0o600); err != nil {
 		t.Fatal(err)
 	}
 
-	rec := &recorder{}
-	h := start(t, &fakeAPI{}, func(a *App) { a.commitWithImages = rec.commit })
+	f := &fakeAPI{}
+	h := start(t, f)
 	h.waitFor("abc1234")
 
 	h.typeText("r")
@@ -126,22 +102,44 @@ func TestAttachesImagesToAReply(t *testing.T) {
 
 	h.typeText("with a screenshot")
 	h.key(tcell.KeyCtrlS)
-	h.waitFor("Unlock your SSH key")
-	h.typeText("secret")
-	h.key(tcell.KeyEnter)
-	h.waitFor("Committed: https://dev-null.sh/@me/commits/c9 (pending review")
+	h.waitFor("[log 9999999] with a screenshot")
 
-	rec.mu.Lock()
-	defer rec.mu.Unlock()
-	if len(rec.sent) != 1 {
-		t.Fatalf("sent %d commits", len(rec.sent))
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if len(f.drafts) != 1 || f.drafts[0].ParentID != "c1" || f.drafts[0].Body != "with a screenshot" {
+		t.Fatalf("sent %+v", f.drafts)
 	}
-	got := rec.sent[0]
-	if got.ReplyTo != "c1" || got.Message != "with a screenshot" || !slices.Equal(got.Images, []string{image}) {
-		t.Errorf("sent %+v", got)
+	if len(f.images) != 1 || !slices.Equal(f.images[0], []string{"shot.png 2048"}) {
+		t.Errorf("sent images %v", f.images)
 	}
-	if string(rec.pass) != "secret" {
-		t.Errorf("passphrase = %q", rec.pass)
+}
+
+func TestAttachesImagesToAQuote(t *testing.T) {
+	image := filepath.Join(t.TempDir(), "shot.webp")
+	if err := os.WriteFile(image, []byte("webp"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	f := &fakeAPI{}
+	h := start(t, f)
+	h.waitFor("abc1234")
+
+	h.typeText("q")
+	h.waitFor("Quote")
+	h.key(tcell.KeyCtrlO)
+	h.waitFor("Attach an image")
+	h.typeText(image)
+	h.key(tcell.KeyEnter)
+	h.waitFor("shot.webp (4 B)")
+
+	h.typeText("look at this")
+	h.key(tcell.KeyCtrlS)
+	h.waitFor("[log 9999999] look at this")
+
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if len(f.drafts) != 1 || f.drafts[0].QuotedCommitID != "c1" || len(f.images) != 1 || len(f.images[0]) != 1 {
+		t.Fatalf("sent %+v with images %v", f.drafts, f.images)
 	}
 }
 
@@ -203,14 +201,4 @@ func TestShortenName(t *testing.T) {
 	if got := shortenName("スクリーンショット.png", 12); uniseg.StringWidth(got) > 12 || !strings.HasSuffix(got, ".png") {
 		t.Errorf("wide name = %q", got)
 	}
-}
-
-func TestAQuoteCannotCarryImages(t *testing.T) {
-	h := start(t, &fakeAPI{})
-	h.waitFor("abc1234")
-
-	h.typeText("q")
-	h.waitFor("Quote")
-	h.key(tcell.KeyCtrlO)
-	h.waitFor("A quote can't carry images.")
 }

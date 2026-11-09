@@ -98,7 +98,7 @@ them.
 | `1`–`6` `Tab` | Following, Latest, Trending, Notifications, Starred, Profile |
 | `g` then `l` `e` `p` `s` | Your log (Following), Trending, Profile, Settings, as on the web |
 | `g` then `a` `n` `b` | Latest, Notifications, Starred |
-| `/` `^k` | Go to an `@username`, a profile's or commit's link, or a hash on screen |
+| `/` `^k` | Search commits and people, or go to an `@username`, a profile's or commit's link, or a hash on screen |
 | `⏎` `l` (or click it again) | Open the thread; on the open commit, reply |
 | `Esc` `h` `⌫` | Back; `Esc` at a tab's top quits |
 | `c` | New commit |
@@ -118,7 +118,7 @@ them.
 | `U` | Undo the delete, for 30 seconds |
 | `!` | Report a commit |
 | `F` / `M` / `B` | Follow / mute / block (on a profile) |
-| `T` | Next profile tab: commits, replies, followers, following |
+| `T` | Next tab of a profile (commits, replies, followers, following) or a search (commits, people) |
 | `f` / `e` | Filter notifications by kind / list everyone in a group |
 | `R` | Refresh |
 | `?` | Help |
@@ -161,7 +161,6 @@ In tmux, images reach a kitty, Ghostty or WezTerm outside it once tmux lets them
 The TUI can do whatever the [signed API](https://github.com/nunomaduro/dev-null.sh#signed-requests) can.
 
 Features that only the web has are out of reach for now:
-- search
 - remotes (messages and orgs)
 - creating polls
 - scheduled commits

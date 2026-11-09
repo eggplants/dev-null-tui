@@ -80,9 +80,10 @@ var (
 	usernameAlone  = regexp.MustCompile(`^@?([A-Za-z0-9][A-Za-z0-9-]{0,38})$`)
 )
 
-// jump asks where to go: someone's @name, a profile's or a commit's link, or a commit's id or short hash.
+// jump asks what to search for, as / does on the web, or where to go: someone's @name, a profile's or a commit's
+// link, or a commit's id or short hash.
 func (a *App) jump() {
-	input := tview.NewInputField().SetLabel("Go to ").SetPlaceholder("@username, a commit's link or hash").
+	input := tview.NewInputField().SetLabel("Search ").SetPlaceholder("words, @username, a commit's link or hash").
 		SetFieldBackgroundColor(tcell.GetColor(colorWash)).SetFieldTextColor(tcell.GetColor(colorInk)).
 		SetLabelColor(tcell.GetColor(colorPrimary)).SetPlaceholderTextColor(tcell.GetColor(colorFaint))
 	input.SetBorder(true).SetTitle(" / ").SetBackgroundColor(tcell.GetColor(theme.popover))
@@ -97,7 +98,7 @@ func (a *App) jump() {
 	a.openModal("jump", centered(input, min(70, width), 3))
 }
 
-// goToRef opens what ref names, telling the user when it names nothing it can open.
+// goToRef opens what ref names, or else searches for it.
 func (a *App) goToRef(ref string) {
 	if ref == "" {
 		return
@@ -118,18 +119,13 @@ func (a *App) goToRef(ref string) {
 			a.push(newThread(a, c.ID))
 			return
 		}
-		// A hash could be a username too; only commits already read can be found by it.
-		if !strings.HasPrefix(ref, "@") {
-			a.fail("No commit %s on screen; paste its link to open it.", ref)
-			return
-		}
 	}
-	if m := usernameAlone.FindStringSubmatch(ref); m != nil {
+	if m := usernameAlone.FindStringSubmatch(ref); m != nil && strings.HasPrefix(ref, "@") {
 		a.push(newProfile(a, m[1]))
 		return
 	}
 
-	a.fail("%s isn't an @name, a link or a hash.", tview.Escape(ref))
+	a.push(newSearch(a, ref))
 }
 
 // setTheme switches the palette while the app runs, laying every view out again in it.

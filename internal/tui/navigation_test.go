@@ -102,7 +102,7 @@ func TestJumpsToAProfile(t *testing.T) {
 	h.waitFor("abc1234")
 
 	h.typeText("/")
-	h.waitFor("Go to")
+	h.waitFor("Search")
 	h.typeText("@alice")
 	h.key(tcell.KeyEnter)
 	h.waitFor("builds things")

@@ -64,6 +64,12 @@ func (p *pager[T]) Reload() {
 	p.fetch(true)
 }
 
+// forget has the list load again the next time it is shown, dropping any answer on its way.
+func (p *pager[T]) forget() {
+	p.generation++
+	p.loaded, p.loading = false, false
+}
+
 func (p *pager[T]) loadMore() {
 	if p.loaded && p.cursor != "" {
 		p.fetch(false)

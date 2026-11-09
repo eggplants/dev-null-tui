@@ -1084,7 +1084,7 @@ func helpText() string {
 		row("^d ^u", "page down / up", "1-6 tab", "switch tab")+
 		row("⏎ l", "open the thread", "esc h ⌫", "back")+
 		row("g l/a/e", "following/latest/hot", "g n/b/p", "notifs/starred/me")+
-		row("g s", "settings", "/ ^k", "go to @user or link")+
+		row("g s", "settings", "/ ^k", "search, or go to @user")+
 		row("Q ^c", "quit", "esc", "quit, at a tab's top")+
 		"\n"+section("Commits")+
 		row("c", "new commit", "R", "refresh")+

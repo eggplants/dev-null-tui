@@ -127,7 +127,7 @@ func TestSelectsThePinnedCommitAndDrawsItsImages(t *testing.T) {
 	h.waitFor("Following")
 
 	h.typeText("/")
-	h.waitFor("Go to")
+	h.waitFor("Search")
 	h.typeText("@alice")
 	h.key(tcell.KeyEnter)
 	h.waitFor("◇ Pinned")

@@ -371,3 +371,13 @@ func (c *Client) SetRemotes(ctx context.Context, on bool) (*CurrentUser, error) 
 func (c *Client) SetRemotePreferences(ctx context.Context, from string, pullReceipts bool) (*CurrentUser, error) {
 	return c.saveMe(ctx, "/api/v1/me/remote-preferences", map[string]any{"from": from, "pull_receipts": pullReceipts})
 }
+
+// MessageLinkPreview reads a message's link card again, as it is made after the message.
+func (c *Client) MessageLinkPreview(ctx context.Context, message int64) (*LinkPreview, error) {
+	var res struct {
+		LinkPreview *LinkPreview `json:"link_preview"`
+	}
+	err := c.Do(ctx, http.MethodGet, messagePath(message)+"/link-preview", nil, &res)
+
+	return res.LinkPreview, err
+}

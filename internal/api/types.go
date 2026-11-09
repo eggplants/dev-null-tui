@@ -66,6 +66,8 @@ type LinkPreview struct {
 	Title       string `json:"title"`
 	Description string `json:"description"`
 	SiteName    string `json:"site_name"`
+	// IsPending is set while the card is still being made from the page.
+	IsPending bool `json:"is_pending"`
 }
 
 type PollOption struct {

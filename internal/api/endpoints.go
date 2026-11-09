@@ -27,6 +27,11 @@ type CurrentUserData struct {
 	SyncedAt      *time.Time `json:"github_synced_at"`
 	// Remotes are the user's settings for remotes, nil while they are off.
 	Remotes *RemotesSettings `json:"remotes"`
+	// TermsVersion is the version of the terms and privacy policy in force, and TermsAccepted whether the user
+	// accepted it.
+	TermsVersion    string     `json:"terms_version"`
+	TermsAcceptedAt *time.Time `json:"terms_accepted_at"`
+	TermsAccepted   bool       `json:"terms_accepted"`
 }
 
 type Log string

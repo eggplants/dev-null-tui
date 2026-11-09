@@ -76,3 +76,8 @@ func (c *Client) saveMe(ctx context.Context, path string, in any) (*CurrentUser,
 
 	return &res, err
 }
+
+// AcceptTerms records that the user accepted the terms and privacy policy of a version, the one in force.
+func (c *Client) AcceptTerms(ctx context.Context, version string) (*CurrentUser, error) {
+	return c.saveMe(ctx, "/api/v1/me/terms", map[string]string{"version": version})
+}

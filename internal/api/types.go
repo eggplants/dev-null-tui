@@ -34,6 +34,8 @@ type User struct {
 	FollowsYou *bool `json:"follows_you"`
 	// Live is the stream they are live on, if they are.
 	Live *Live `json:"live"`
+	// FollowedByFollowingCount is how many of the people the user follows follow them, in suggestions.
+	FollowedByFollowingCount *int `json:"followed_by_following_count"`
 }
 
 // Mention is where a commit's body mentions someone, counted in characters.

@@ -34,3 +34,37 @@ func (c *Client) SearchProfiles(ctx context.Context, q string) (people, organiza
 
 	return res.Users, res.Organizations, err
 }
+
+// SuggestMentions finds the people, and the organizations outside replies and quotes, the composer suggests for an
+// @mention starting with q, as the web's composer does. reply and quote are the commit the draft answers, if any.
+func (c *Client) SuggestMentions(ctx context.Context, q, reply, quote string) ([]User, error) {
+	query := url.Values{"q": {q}}
+	if reply != "" {
+		query.Set("reply", reply)
+	}
+	if quote != "" {
+		query.Set("quote", quote)
+	}
+
+	var res data[[]User]
+	err := c.Do(ctx, http.MethodGet, "/api/v1/search/mentions?"+query.Encode(), nil, &res)
+
+	return res.Data, err
+}
+
+// Issue is a /dev/null issue on GitHub, as the composer suggests it for a #number.
+type Issue struct {
+	Number int    `json:"number"`
+	Title  string `json:"title"`
+	URL    string `json:"url"`
+}
+
+// SuggestIssue finds the /dev/null issue with a number, or nil if there is none.
+func (c *Client) SuggestIssue(ctx context.Context, number int) (*Issue, error) {
+	var res struct {
+		Issue *Issue `json:"issue"`
+	}
+	err := c.Do(ctx, http.MethodGet, "/api/v1/search/issues?"+url.Values{"q": {strconv.Itoa(number)}}.Encode(), nil, &res)
+
+	return res.Issue, err
+}
